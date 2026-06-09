@@ -1,0 +1,38 @@
+# EduIA — Dependencias Python
+# Instalar con: pip install -r requirements.txt
+
+# API y servidor local
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+
+# LLM — llama.cpp Python bindings (incluye binarios precompilados)
+llama-cpp-python==0.3.2
+
+# Base de datos local
+# SQLite viene incluido en Python, solo necesitamos el ORM
+sqlalchemy==2.0.35
+alembic==1.13.3
+
+# Seguridad local
+bcrypt==4.2.0
+python-jose==3.3.0
+
+# Procesamiento de archivos (para leer trabajos de alumnos)
+python-docx==1.1.2
+pymupdf==1.24.10          # Leer PDFs localmente
+markdown==3.7
+
+# Utilidades
+python-multipart==0.0.12  # Subida de archivos
+pydantic==2.9.2
+pydantic-settings==2.5.2
+python-dotenv==1.0.1
+httpx==0.27.2             # Cliente HTTP (solo para tests locales)
+rich==13.9.2              # Logs bonitos en consola
+
+# Empaquetado (para generar el .exe final)
+pyinstaller==6.11.0
+
+# Testing
+pytest==8.3.3
+pytest-asyncio==0.24.0
