@@ -1,0 +1,36 @@
+{
+  "productName": "EduIA",
+  "version": "0.1.0",
+  "identifier": "es.eduia.app",
+  "build": {
+    "frontendDist": "../frontend/student"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "EduIA — Tu tutor local",
+        "width": 1100,
+        "height": 700,
+        "minWidth": 800,
+        "minHeight": 550,
+        "resizable": true,
+        "fullscreen": false,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self'; connect-src http://127.0.0.1:8765"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  }
+}

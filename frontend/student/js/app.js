@@ -1,67 +1,75 @@
 /**
  * frontend/student/js/app.js
- * Punto de entrada — login, navegación, estado global
- * Se carga el último para tener acceso a api.js, chat.js, portfolio.js
+ * Arranque, login, navegación — con textos de ChatGPT integrados
  */
 
-// ── Estado global ──────────────────────────────
-const AppState = {
-  student: null,     // { id, name, course, age }
-  currentPanel: 'chat',
-};
+const AppState = { student: null, isReturning: false };
 
-// ── Arranque ───────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
+  Loading.show('loadingScreen');
   setupPinInputs();
-  setupRoleTabs();
-  await checkBackend();
+  await bootSequence();
 });
 
-async function checkBackend() {
-  try {
-    const health = await API.health();
-    if (!health.model_loaded) {
-      showLoginError('El modelo de IA está cargando, espera unos segundos e inténtalo de nuevo.');
-    }
-  } catch (e) {
-    showLoginError('No se puede conectar con EduIA. Asegúrate de que el programa está abierto.');
+// ── Arranque ──────────────────────────────────────
+async function bootSequence() {
+  // Intentar conectar al backend hasta 30s
+  const maxTries = 10;
+  for (let i = 0; i < maxTries; i++) {
+    try {
+      const health = await API.health();
+      if (health.model_loaded) {
+        Loading.hide('loadingScreen');
+        showLoginScreen();
+        return;
+      }
+    } catch (e) { /* backend aún arrancando */ }
+    await sleep(3000);
   }
+  // Timeout — mostrar error
+  Loading.hide('loadingScreen');
+  document.getElementById('errorScreen').style.display = 'flex';
 }
 
-// ── Login ──────────────────────────────────────
-function setupRoleTabs() {
-  document.querySelectorAll('.role-tab').forEach((tab, i) => {
-    tab.addEventListener('click', () => switchRole(i === 0 ? 'student' : 'teacher'));
-  });
+async function retryConnection() {
+  document.getElementById('errorScreen').style.display = 'none';
+  document.getElementById('loadingScreen').style.display = 'flex';
+  Loading.show('loadingScreen');
+  await bootSequence();
 }
 
-function switchRole(role) {
-  document.querySelectorAll('.role-tab').forEach(t => t.classList.remove('active'));
-  document.getElementById(role === 'student' ? 'tabStudent' : 'tabTeacher').classList.add('active');
-  // El campo curso solo aplica a alumnos
-  document.getElementById('courseField').style.display = role === 'student' ? 'block' : 'none';
-  document.getElementById('loginError').style.display = 'none';
+function showLoginScreen() {
+  // Detectar si hay nombre guardado → acceso recurrente
+  const savedName = localStorage.getItem('eduia_last_name');
+  if (savedName) {
+    AppState.isReturning = true;
+    document.getElementById('loginTitle').textContent = '¡Qué bien verte de nuevo!';
+    document.getElementById('loginSub').textContent   = 'Continúa aprendiendo donde lo dejaste.';
+    document.getElementById('loginBtn').textContent   = 'Entrar';
+    document.getElementById('loginName').value        = savedName;
+    document.getElementById('courseField').style.display = 'none';
+  } else {
+    document.getElementById('loginBtn').textContent = 'Comenzar';
+  }
+  document.getElementById('loginScreen').style.display = 'flex';
 }
 
+// ── PIN ───────────────────────────────────────────
 function setupPinInputs() {
   const pins = document.querySelectorAll('.pin-digit');
   pins.forEach((input, i) => {
     input.addEventListener('input', () => {
-      // Solo números
-      input.value = input.value.replace(/\D/g, '');
-      if (input.value && i < pins.length - 1) pins[i + 1].focus();
+      input.value = input.value.replace(/\D/g,'');
+      if (input.value && i < pins.length - 1) pins[i+1].focus();
     });
-    input.addEventListener('keydown', (e) => {
-      if (e.key === 'Backspace' && !input.value && i > 0) pins[i - 1].focus();
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Backspace' && !input.value && i > 0) pins[i-1].focus();
       if (e.key === 'Enter') doLogin();
     });
-    // Pegar el PIN completo en el primer campo
-    input.addEventListener('paste', (e) => {
-      const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 4);
-      pasted.split('').forEach((digit, j) => {
-        if (pins[j]) pins[j].value = digit;
-      });
-      if (pins[pasted.length - 1]) pins[pasted.length - 1].focus();
+    input.addEventListener('paste', e => {
+      const pasted = e.clipboardData.getData('text').replace(/\D/g,'').slice(0,4);
+      pasted.split('').forEach((d,j) => { if (pins[j]) pins[j].value = d; });
+      if (pins[pasted.length-1]) pins[pasted.length-1].focus();
       e.preventDefault();
     });
   });
@@ -71,127 +79,141 @@ function getPin() {
   return [...document.querySelectorAll('.pin-digit')].map(i => i.value).join('');
 }
 
-function showLoginError(msg) {
-  const el = document.getElementById('loginError');
-  el.textContent = msg;
-  el.style.display = 'block';
-}
-
+// ── Login ─────────────────────────────────────────
 async function doLogin() {
   const name   = document.getElementById('loginName').value.trim();
-  const course = document.getElementById('loginCourse').value;
+  const course = document.getElementById('loginCourse')?.value || '';
   const pin    = getPin();
 
-  if (!name) { showLoginError('Escribe tu nombre.'); return; }
-  if (pin.length < 4) { showLoginError('Introduce los 4 dígitos de tu PIN.'); return; }
+  if (!name)           { showLoginError('Escribe tu nombre.'); return; }
+  if (pin.length < 4)  { showLoginError('Introduce los 4 dígitos de tu PIN.'); return; }
+  if (!AppState.isReturning && !course) {
+    showLoginError('Selecciona tu curso.'); return;
+  }
 
   const btn = document.getElementById('loginBtn');
   btn.textContent = 'Entrando...';
-  btn.disabled = true;
+  btn.disabled    = true;
   document.getElementById('loginError').style.display = 'none';
 
   try {
-    // Intentar login; si no existe, registrar automáticamente
     let data;
     try {
       data = await API.login(name, pin, course);
-    } catch (loginErr) {
-      if (loginErr.message.includes('Credenciales incorrectas')) {
-        throw loginErr;
-      }
-      // Perfil no existe — crear nuevo alumno
+    } catch (e) {
+      if (e.message.includes('incorrectas')) throw e;
       const age = estimateAge(course);
       await API.register(name, pin, course, age);
       data = await API.login(name, pin, course);
     }
 
+    localStorage.setItem('eduia_last_name', name);
     AppState.student = { name, course };
 
-    // Actualizar sidebar
-    document.getElementById('sidebarName').textContent = name;
-    document.getElementById('sidebarCourse').textContent = `${course} · ${document.getElementById('subjectSelect')?.value || 'Programación'}`;
+    document.getElementById('sidebarName').textContent   = name;
+    document.getElementById('sidebarCourse').textContent =
+      `${course} · ${document.getElementById('subjectSelect').value}`;
 
-    // Ocultar login, mostrar app
     document.getElementById('loginScreen').style.display = 'none';
-    document.getElementById('appShell').style.display   = 'flex';
+    document.getElementById('appShell').style.display    = 'flex';
 
-    // Arrancar el chat
-    await Chat.init();
+    // Bienvenida personalizada — textos de ChatGPT
+    const welcomes = [
+      `¡Hola, ${name}! ¿Sobre qué te gustaría aprender hoy?`,
+      `Bienvenido de nuevo, ${name}. Estoy listo para ayudarte a aprender paso a paso.`,
+      `Hola, ${name}. Cuéntame qué estás estudiando y empezamos.`,
+    ];
+    const welcome = AppState.isReturning
+      ? welcomes[1]
+      : welcomes[0];
+
+    await Chat.init(welcome);
+    buildFileTypeGrid();
 
   } catch (err) {
     showLoginError(err.message || 'Error al entrar. Inténtalo de nuevo.');
   } finally {
-    btn.textContent = 'Entrar';
-    btn.disabled = false;
+    btn.textContent = AppState.isReturning ? 'Entrar' : 'Comenzar';
+    btn.disabled    = false;
   }
 }
 
-function estimateAge(course) {
-  const ages = {
-    '1.º ESO': 12, '2.º ESO': 13, '3.º ESO': 14, '4.º ESO': 15,
-    '1.º Bachillerato': 16, '2.º Bachillerato': 17,
-    '1.º DAM': 18, '2.º DAM': 19, '1.º DAW': 18, '2.º DAW': 19,
-    '1.º SMR': 18, '2.º SMR': 19,
-  };
-  return ages[course] || 16;
+function showLoginError(msg) {
+  const el = document.getElementById('loginError');
+  el.textContent   = msg;
+  el.style.display = 'block';
 }
 
-// ── Navegación ─────────────────────────────────
+function estimateAge(course) {
+  const map = {
+    '1.º ESO':12,'2.º ESO':13,'3.º ESO':14,'4.º ESO':15,
+    '1.º Bachillerato':16,'2.º Bachillerato':17,
+    '1.º DAM':18,'2.º DAM':19,'1.º DAW':18,'2.º DAW':19,
+    '1.º SMR':18,'2.º SMR':19,
+  };
+  return map[course] || 16;
+}
+
+// ── Navegación ────────────────────────────────────
 function showPanel(name, btn) {
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
-
   const panel = document.getElementById('panel-' + name);
   if (panel) panel.classList.add('active');
-  if (btn) btn.classList.add('active');
-
-  AppState.currentPanel = name;
-
-  // Cargar datos según el panel
+  if (btn)   btn.classList.add('active');
   if (name === 'portfolio') Portfolio.load();
-  if (name === 'history') loadHistory();
 }
 
-async function loadHistory() {
-  // Por ahora muestra las conversaciones del estado local
-  // En la próxima iteración se conecta al endpoint /conversations
-  const list = document.getElementById('historyList');
-
-  // Placeholder hasta tener el endpoint de historial
-  list.innerHTML = `
-    <div style="padding:20px;font-size:13px;color:var(--text-3);">
-      El historial se activará en la próxima versión.<br>
-      Por ahora, tus conversaciones se guardan en la base de datos local.
-    </div>`;
-}
-
-// ── Cambio de asignatura ───────────────────────
 async function changeSubject() {
   const subject = document.getElementById('subjectSelect').value;
   Chat.subject = subject;
   Chat.clear();
   document.getElementById('sidebarCourse').textContent =
     `${AppState.student?.course || ''} · ${subject}`;
-
   try {
     const conv = await API.startConversation(subject);
     Chat.conversationId = conv.conversation_id;
-  } catch (e) { /* seguimos sin conv_id */ }
-
-  Chat.renderWelcome();
+  } catch (e) {}
+  Chat.addMessage('assistant',
+    `Cambiando a <strong>${subject}</strong>. ¿Con qué necesitas ayuda?`
+  );
 }
 
-// ── Crear archivo ──────────────────────────────
-function startFileCreation(fileType) {
-  // Cambiar al chat y pedir el tema
-  showPanel('chat', document.querySelector('[data-panel=chat]'));
+// ── Grid de tipos de archivo ──────────────────────
+function buildFileTypeGrid() {
+  const types = [
+    { ext:'py',   name:'Python',     color:'#3B6D11' },
+    { ext:'html', name:'HTML',       color:'#993C1D' },
+    { ext:'css',  name:'CSS',        color:'#185FA5' },
+    { ext:'js',   name:'JavaScript', color:'#854F0B' },
+    { ext:'md',   name:'Markdown',   color:'#534AB7' },
+    { ext:'json', name:'JSON',       color:'#0F6E56' },
+  ];
+  const grid = document.getElementById('fileTypeGrid');
+  if (!grid) return;
+  grid.innerHTML = types.map(t => `
+    <button class="file-type-btn" onclick="startFileCreation('${t.ext}')">
+      <span style="font-size:26px;color:${t.color};display:block;margin-bottom:6px;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="1.8" width="26" height="26">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+        </svg>
+      </span>
+      <div class="ext-label">.${t.ext}</div>
+      <div class="ext-desc">${t.name}</div>
+    </button>`).join('');
+}
 
-  // Pedir el tema del archivo al alumno mediante el chat
+function startFileCreation(fileType) {
+  showPanel('chat', document.querySelector('[data-panel=chat]'));
+  Chat.pendingFileType = fileType;
   Chat.addMessage('assistant',
     `Vamos a crear un archivo <strong>.${fileType}</strong>. ` +
-    `¿Sobre qué tema quieres que sea? Descríbelo brevemente en el chat.`
+    `Antes de generarlo, te haré unas preguntas rápidas para comprobar que entiendes el tema. ` +
+    `¿Sobre qué quieres que sea el archivo?`
   );
-
-  // Guardar el tipo de archivo pendiente
-  Chat.pendingFileType = fileType;
 }
+
+// ── Utils ─────────────────────────────────────────
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }

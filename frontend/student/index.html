@@ -3,87 +3,121 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>EduIA — Tu tutor local</title>
+  <title>EduIA</title>
   <link rel="stylesheet" href="css/main.css" />
-  <!-- Tauri no permite recursos externos, los iconos son SVG inline en JS -->
+  <link rel="stylesheet" href="css/loading.css" />
 </head>
 <body>
 
-<h1 class="sr-only">EduIA — App de alumnos</h1>
+<!-- ══════════════════════════════════
+     PANTALLA DE CARGA INICIAL
+     Mensajes rotativos cada 3s (idea ChatGPT)
+     ══════════════════════════════════ -->
+<div id="loadingScreen">
+  <div class="loading-box">
+    <div class="loading-logo">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <path d="M22 10v6M2 10l10-5 10 5-10 5z"/>
+        <path d="M6 12v5c3 3 9 3 12 0v-5"/>
+      </svg>
+    </div>
+    <div class="loading-title">Preparando EduIA</div>
+    <div class="loading-msg" id="loadingMsg">Iniciando...</div>
+    <div class="loading-bar"><div class="loading-bar-fill" id="loadingBarFill"></div></div>
+    <div class="loading-sub">La primera vez puede tardar entre 15 y 30 segundos.</div>
+  </div>
+</div>
 
 <!-- ══════════════════════════════════
-     PANTALLA DE LOGIN
+     ERROR: MODELO NO DISPONIBLE
      ══════════════════════════════════ -->
-<div id="loginScreen">
+<div id="errorScreen" style="display:none;">
+  <div class="error-box">
+    <div class="error-icon">⚠️</div>
+    <div class="error-title">No he podido iniciar el tutor.</div>
+    <div class="error-msg">
+      Parece que falta un archivo necesario para iniciar EduIA.<br>
+      Cierra la aplicación y vuelve a intentarlo.<br><br>
+      Si el problema continúa, avisa a tu profesor o administrador.
+    </div>
+    <button class="btn-primary" onclick="retryConnection()">Reintentar</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════
+     LOGIN
+     ══════════════════════════════════ -->
+<div id="loginScreen" style="display:none;">
   <div class="login-box">
 
     <div class="login-logo">
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/>
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+        <path d="M22 10v6M2 10l10-5 10 5-10 5z"/>
+        <path d="M6 12v5c3 3 9 3 12 0v-5"/>
       </svg>
     </div>
 
-    <div class="login-title">EduIA</div>
-    <div class="login-sub">Tu tutor de inteligencia artificial.<br>Sin internet. Sin cuentas. Solo tú y el conocimiento.</div>
-
-    <div class="role-tabs" role="tablist">
-      <button class="role-tab active" id="tabStudent" role="tab" aria-selected="true" onclick="switchRole('student')">Alumno</button>
-      <button class="role-tab"        id="tabTeacher" role="tab" aria-selected="false" onclick="switchRole('teacher')">Profesor</button>
+    <!-- Título cambia según si es primer acceso o recurrente -->
+    <div class="login-title" id="loginTitle">Bienvenido a EduIA</div>
+    <div class="login-sub" id="loginSub">
+      Tu tutor de aprendizaje te ayudará a pensar, practicar y aprender paso a paso.
     </div>
 
     <div class="form-field">
       <label class="form-label" for="loginName">Tu nombre</label>
-      <input class="form-input" type="text" id="loginName" placeholder="Ana García" autocomplete="off" />
+      <input class="form-input" type="text" id="loginName"
+             placeholder="Ana García" autocomplete="off" />
     </div>
 
     <div class="form-field" id="courseField">
       <label class="form-label" for="loginCourse">Curso</label>
       <select class="form-select" id="loginCourse">
         <option value="">Selecciona tu curso...</option>
-        <option>1.º ESO</option>
-        <option>2.º ESO</option>
-        <option>3.º ESO</option>
-        <option>4.º ESO</option>
-        <option>1.º Bachillerato</option>
-        <option>2.º Bachillerato</option>
-        <option>1.º DAM</option>
-        <option>2.º DAM</option>
-        <option>1.º DAW</option>
-        <option>2.º DAW</option>
-        <option>1.º SMR</option>
-        <option>2.º SMR</option>
+        <option>1.º ESO</option><option>2.º ESO</option>
+        <option>3.º ESO</option><option>4.º ESO</option>
+        <option>1.º Bachillerato</option><option>2.º Bachillerato</option>
+        <option>1.º DAM</option><option>2.º DAM</option>
+        <option>1.º DAW</option><option>2.º DAW</option>
+        <option>1.º SMR</option><option>2.º SMR</option>
       </select>
     </div>
 
     <div class="form-field">
       <label class="form-label">PIN de acceso (4 dígitos)</label>
       <div class="pin-row" id="pinRow">
-        <input class="pin-digit" type="password" maxlength="1" inputmode="numeric" pattern="[0-9]" id="pin0" />
-        <input class="pin-digit" type="password" maxlength="1" inputmode="numeric" pattern="[0-9]" id="pin1" />
-        <input class="pin-digit" type="password" maxlength="1" inputmode="numeric" pattern="[0-9]" id="pin2" />
-        <input class="pin-digit" type="password" maxlength="1" inputmode="numeric" pattern="[0-9]" id="pin3" />
+        <input class="pin-digit" type="password" maxlength="1"
+               inputmode="numeric" id="pin0" />
+        <input class="pin-digit" type="password" maxlength="1"
+               inputmode="numeric" id="pin1" />
+        <input class="pin-digit" type="password" maxlength="1"
+               inputmode="numeric" id="pin2" />
+        <input class="pin-digit" type="password" maxlength="1"
+               inputmode="numeric" id="pin3" />
       </div>
     </div>
 
-    <button class="btn-login" id="loginBtn" onclick="doLogin()">Entrar</button>
-    <div class="login-error" id="loginError">Nombre o PIN incorrecto. Inténtalo de nuevo.</div>
+    <button class="btn-login" id="loginBtn" onclick="doLogin()">
+      Comenzar
+    </button>
+    <div class="login-error" id="loginError"></div>
   </div>
 </div>
-
 
 <!-- ══════════════════════════════════
      APP PRINCIPAL
      ══════════════════════════════════ -->
 <div class="app-shell" id="appShell" style="display:none;">
 
-  <!-- ── Sidebar ── -->
-  <aside class="sidebar" role="navigation" aria-label="Menú principal">
-
+  <aside class="sidebar">
     <div class="sidebar-header">
       <div class="logo">
         <div class="logo-icon">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2.2">
+            <path d="M22 10v6M2 10l10-5 10 5-10 5z"/>
+            <path d="M6 12v5c3 3 9 3 12 0v-5"/>
           </svg>
         </div>
         <div>
@@ -100,22 +134,38 @@
 
     <nav class="nav">
       <div class="nav-section">Aprendizaje</div>
-      <button class="nav-item active" onclick="showPanel('chat', this)" data-panel="chat">
-        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      <button class="nav-item active" onclick="showPanel('chat',this)" data-panel="chat">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" width="16" height="16">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
         Chat con EduIA
       </button>
-      <button class="nav-item" onclick="showPanel('portfolio', this)" data-panel="portfolio">
-        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+      <button class="nav-item" onclick="showPanel('portfolio',this)" data-panel="portfolio">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" width="16" height="16">
+          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+        </svg>
         Mi portfolio
       </button>
 
       <div class="nav-section">Herramientas</div>
-      <button class="nav-item" onclick="showPanel('create', this)" data-panel="create">
-        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+      <button class="nav-item" onclick="showPanel('create',this)" data-panel="create">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" width="16" height="16">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="12" y1="18" x2="12" y2="12"/>
+          <line x1="9" y1="15" x2="15" y2="15"/>
+        </svg>
         Crear archivo
       </button>
-      <button class="nav-item" onclick="showPanel('history', this)" data-panel="history">
-        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="12 8 12 12 14 14"/><path d="M3.05 11a9 9 0 1 1 .5 4m-.5 5v-5h5"/></svg>
+      <button class="nav-item" onclick="showPanel('history',this)" data-panel="history">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" width="16" height="16">
+          <polyline points="12 8 12 12 14 14"/>
+          <path d="M3.05 11a9 9 0 1 1 .5 4m-.5 5v-5h5"/>
+        </svg>
         Historial
       </button>
     </nav>
@@ -124,13 +174,11 @@
       <strong id="hintCount">0</strong> pistas usadas hoy<br>
       <span id="hintMsg" style="font-size:10px;">¡Empecemos a aprender!</span>
     </div>
-
   </aside>
 
-  <!-- ── Main ── -->
   <main class="main">
 
-    <!-- Panel: Chat -->
+    <!-- CHAT -->
     <div class="panel active" id="panel-chat">
       <div class="topbar">
         <span class="topbar-title">Chat con EduIA</span>
@@ -144,105 +192,73 @@
         </select>
       </div>
 
-      <div class="chat-messages" id="chatMessages" role="log" aria-live="polite" aria-label="Conversación con EduIA">
-        <!-- Los mensajes se insertan aquí dinámicamente -->
+      <div class="chat-messages" id="chatMessages"
+           role="log" aria-live="polite" aria-label="Conversación con EduIA">
       </div>
 
       <div class="input-bar">
-        <button class="btn-icon" title="Crear archivo" onclick="showPanel('create', document.querySelector('[data-panel=create]'))">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+        <button class="btn-icon" title="Crear archivo"
+                onclick="showPanel('create',document.querySelector('[data-panel=create]'))">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" width="16" height="16">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="12" y1="18" x2="12" y2="12"/>
+            <line x1="9" y1="15" x2="15" y2="15"/>
+          </svg>
         </button>
-        <textarea
-          id="chatInput"
+        <textarea id="chatInput"
           placeholder="Escribe tu pregunta o duda..."
-          rows="1"
-          aria-label="Mensaje para EduIA"
-        ></textarea>
-        <button class="btn-send" id="sendBtn" onclick="sendMessage()" aria-label="Enviar mensaje">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+          rows="1" aria-label="Mensaje para EduIA"></textarea>
+        <button class="btn-send" id="sendBtn"
+                onclick="sendMessage()" aria-label="Enviar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2.5" width="16" height="16">
+            <line x1="12" y1="19" x2="12" y2="5"/>
+            <polyline points="5 12 12 5 19 12"/>
+          </svg>
         </button>
       </div>
     </div>
 
-    <!-- Panel: Portfolio -->
+    <!-- PORTFOLIO -->
     <div class="panel" id="panel-portfolio">
       <div class="topbar">
         <span class="topbar-title">Mi portfolio</span>
-        <span class="portfolio-count" id="portfolioCount">0 archivos</span>
+        <span style="font-size:12px;color:var(--text-3);"
+              id="portfolioCount">0 archivos</span>
       </div>
-      <div class="portfolio-grid" id="portfolioGrid">
-        <!-- Se rellena dinámicamente -->
-      </div>
+      <div class="portfolio-grid" id="portfolioGrid"></div>
     </div>
 
-    <!-- Panel: Crear archivo -->
+    <!-- CREAR ARCHIVO -->
     <div class="panel" id="panel-create">
       <div class="topbar">
         <span class="topbar-title">Crear archivo</span>
       </div>
       <div class="create-info">
-        Antes de crear cualquier archivo, EduIA te hará 3 preguntas para comprobar que entiendes el tema.
-        Así el resultado será realmente tuyo.
+        Antes de crear cualquier archivo, te haré unas preguntas rápidas
+        para comprobar que entiendes el tema. Así el resultado será realmente tuyo.
       </div>
-      <div class="file-type-grid">
-        <button class="file-type-btn" onclick="startFileCreation('py')">
-          <span class="ext-icon file-ext-icon py">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="26" height="26"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-          </span>
-          <div class="ext-label">.py</div>
-          <div class="ext-desc">Python</div>
-        </button>
-        <button class="file-type-btn" onclick="startFileCreation('html')">
-          <span class="ext-icon file-ext-icon html">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="26" height="26"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-          </span>
-          <div class="ext-label">.html</div>
-          <div class="ext-desc">HTML</div>
-        </button>
-        <button class="file-type-btn" onclick="startFileCreation('css')">
-          <span class="ext-icon file-ext-icon css">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="26" height="26"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-          </span>
-          <div class="ext-label">.css</div>
-          <div class="ext-desc">CSS</div>
-        </button>
-        <button class="file-type-btn" onclick="startFileCreation('js')">
-          <span class="ext-icon file-ext-icon js">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="26" height="26"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-          </span>
-          <div class="ext-label">.js</div>
-          <div class="ext-desc">JavaScript</div>
-        </button>
-        <button class="file-type-btn" onclick="startFileCreation('md')">
-          <span class="ext-icon file-ext-icon md">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="26" height="26"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-          </span>
-          <div class="ext-label">.md</div>
-          <div class="ext-desc">Markdown</div>
-        </button>
-        <button class="file-type-btn" onclick="startFileCreation('json')">
-          <span class="ext-icon file-ext-icon json">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="26" height="26"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-          </span>
-          <div class="ext-label">.json</div>
-          <div class="ext-desc">JSON</div>
-        </button>
-      </div>
+      <div class="file-type-grid" id="fileTypeGrid"></div>
     </div>
 
-    <!-- Panel: Historial -->
+    <!-- HISTORIAL -->
     <div class="panel" id="panel-history">
       <div class="topbar">
         <span class="topbar-title">Historial de conversaciones</span>
       </div>
       <div class="history-list" id="historyList">
-        <!-- Se rellena dinámicamente -->
+        <div style="padding:20px;font-size:13px;color:var(--text-3);">
+          El historial completo estará disponible en la próxima versión.
+        </div>
       </div>
     </div>
 
   </main>
 </div>
 
+<script src="js/loading.js"></script>
 <script src="js/api.js"></script>
 <script src="js/chat.js"></script>
 <script src="js/portfolio.js"></script>
