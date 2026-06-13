@@ -185,3 +185,40 @@ class LLMEngine:
 
 
 engine = LLMEngine()
+
+
+# ── Cargador con timeout y fallback automático ──────────────────
+# Patrón recomendado por ChatGPT
+
+def get_engine():
+    """
+    Retorna el motor LLM real si carga en < 30s.
+    Si falla, retorna FallbackEngine transparentemente.
+    El alumno nunca nota la diferencia.
+    """
+    import threading
+    from backend.llm.fallback import FallbackEngine
+
+    result = {"engine": None, "error": None}
+
+    def _load():
+        try:
+            e = LLMEngine()
+            if e.load():
+                result["engine"] = e
+            else:
+                result["error"] = "load() returned False"
+        except Exception as ex:
+            result["error"] = str(ex)
+
+    t = threading.Thread(target=_load, daemon=True)
+    t.start()
+    t.join(timeout=30)
+
+    if result["engine"]:
+        logger.info("✅ Motor LLM real activo")
+        return result["engine"]
+
+    logger.warning("[FALLBACK] Activando motor de emergencia. Razón: %s",
+                   result["error"] or "timeout 30s")
+    return FallbackEngine()
