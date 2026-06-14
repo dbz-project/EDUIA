@@ -1,126 +1,91 @@
 // src-tauri/src/main.rs
-// Health check inteligente — abre Tauri cuando ready=true, no por tiempo fijo
-// Recomendación ChatGPT: no depender de sleep fijo
+// Rutas absolutas basadas en la ubicación del .exe — fix ISSUE-005
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::path::PathBuf;
 use std::process::{Child, Command};
 use std::sync::Mutex;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use tauri::Manager;
 
 struct BackendProcess(Mutex<Option<Child>>);
 
-fn get_python_path() -> PathBuf {
-    let exe_dir = std::env::current_exe()
-        .unwrap_or_default()
-        .parent()
-        .unwrap_or(&std::path::Path::new("."))
-        .to_path_buf();
-
-    let candidates = vec![
-        std::env::current_dir()
-            .unwrap_or_default()
-            .join("venv").join("Scripts").join("python.exe"),
-        exe_dir.join("venv").join("Scripts").join("python.exe"),
-        exe_dir.join("..").join("venv").join("Scripts").join("python.exe"),
-    ];
-
-    for path in &candidates {
-        if path.exists() {
-            eprintln!("[TAURI] Python encontrado: {:?}", path);
-            return path.clone();
-        }
-    }
-    eprintln!("[TAURI] Usando Python del sistema (fallback)");
-    PathBuf::from("python")
-}
-
-fn get_backend_path() -> PathBuf {
-    let candidates = vec![
-        std::env::current_dir()
-            .unwrap_or_default()
-            .join("backend").join("main.py"),
+/// Directorio raíz del proyecto — donde está el .exe o donde se ejecuta en dev
+fn get_project_root() -> PathBuf {
+    // En desarrollo: directorio actual (C:\Users\adam\Desktop\EDUIA)
+    // En producción: directorio del .exe instalado
+    if cfg!(debug_assertions) {
+        std::env::current_dir().unwrap_or_default()
+    } else {
         std::env::current_exe()
             .unwrap_or_default()
             .parent()
             .unwrap_or(&std::path::Path::new("."))
-            .join("backend").join("main.py"),
-    ];
-    for path in &candidates {
-        if path.exists() { return path.clone(); }
+            .to_path_buf()
     }
-    PathBuf::from("backend/main.py")
 }
 
-fn start_backend() -> Option<Child> {
-    let python  = get_python_path();
-    let backend = get_backend_path();
-    eprintln!("[TAURI] Arrancando: {:?} -m backend.main", python);
+fn get_python_path(root: &PathBuf) -> PathBuf {
+    let candidates = vec![
+        root.join("venv").join("Scripts").join("python.exe"),
+        root.join(".venv").join("Scripts").join("python.exe"),
+    ];
+    for p in &candidates {
+        if p.exists() {
+            eprintln!("[TAURI] Python: {:?}", p);
+            return p.clone();
+        }
+    }
+    eprintln!("[TAURI] Python no encontrado en venv, usando sistema");
+    PathBuf::from("python")
+}
 
-    // Usar -m backend.main para evitar el problema de módulo no encontrado
+fn start_backend(root: &PathBuf) -> Option<Child> {
+    let python = get_python_path(root);
+
+    eprintln!("[TAURI] Root: {:?}", root);
+    eprintln!("[TAURI] Arrancando backend...");
+
     Command::new(&python)
-        .arg("-m").arg("backend.main")
-        .current_dir(
-            std::env::current_dir().unwrap_or_default()
-        )
+        .args(["-m", "backend.main"])
+        .current_dir(root)   // ← CLAVE: directorio de trabajo = raíz del proyecto
         .spawn()
         .map_err(|e| eprintln!("[TAURI] Error: {}", e))
         .ok()
 }
 
-/// Health check inteligente — reintenta hasta que ready=true
-/// Intento 1: espera 5s
-/// Intento 2: espera 5s más  
-/// Intento 3: espera 10s más
-/// Total máximo: ~20s antes de abrir igualmente (con fallback activo)
 fn wait_for_backend() {
-    let waits = [5u64, 5, 10];
-    for (i, wait) in waits.iter().enumerate() {
-        std::thread::sleep(Duration::from_secs(*wait));
-        eprintln!("[TAURI] Health check intento {}...", i + 1);
-
-        // Llamada HTTP simple al health endpoint
-        if backend_is_ready() {
-            eprintln!("[TAURI] Backend listo ✅");
+    // Intento 1: 5s, Intento 2: +5s, Intento 3: +10s
+    for (i, secs) in [5u64, 5, 10].iter().enumerate() {
+        std::thread::sleep(Duration::from_secs(*secs));
+        eprintln!("[TAURI] Health check {}/3...", i + 1);
+        if check_health() {
+            eprintln!("[TAURI] ✅ Backend listo");
             return;
         }
-        eprintln!("[TAURI] Backend aún no listo, reintentando...");
     }
-    // Abrir igualmente — el fallback responderá si Qwen no cargó
-    eprintln!("[TAURI] Abriendo app (fallback activo si es necesario)");
+    eprintln!("[TAURI] Abriendo app (fallback activo si modelo no cargó)");
 }
 
-#[cfg(target_os = "windows")]
-fn backend_is_ready() -> bool {
-    // En Windows usamos un proceso PowerShell para el health check
-    // sin añadir dependencias HTTP a Rust
-    let output = Command::new("powershell")
+fn check_health() -> bool {
+    let out = Command::new("powershell")
         .args([
-            "-WindowStyle", "Hidden",
-            "-Command",
-            "try { $r = Invoke-WebRequest -Uri 'http://127.0.0.1:8765/health' -TimeoutSec 3; \
-             $j = $r.Content | ConvertFrom-Json; \
-             if ($j.ready -eq $true) { exit 0 } else { exit 1 } } catch { exit 1 }"
+            "-WindowStyle", "Hidden", "-Command",
+            "try { $r=(Invoke-WebRequest -Uri 'http://127.0.0.1:8765/health' \
+             -TimeoutSec 3).Content|ConvertFrom-Json; \
+             if($r.ready){exit 0}else{exit 1} } catch { exit 1 }"
         ])
         .output();
-
-    match output {
-        Ok(o) => o.status.success(),
-        Err(_) => false,
-    }
-}
-
-#[cfg(not(target_os = "windows"))]
-fn backend_is_ready() -> bool {
-    false // En no-Windows siempre usa el sleep
+    matches!(out, Ok(o) if o.status.success())
 }
 
 fn main() {
+    let root = get_project_root();
+
     tauri::Builder::default()
-        .setup(|app| {
-            let child = start_backend();
+        .setup(move |app| {
+            let child = start_backend(&root);
             app.manage(BackendProcess(Mutex::new(child)));
             wait_for_backend();
             Ok(())
@@ -129,13 +94,13 @@ fn main() {
             if let tauri::WindowEvent::Destroyed = event {
                 if let Some(state) = window.try_state::<BackendProcess>() {
                     if let Ok(mut child) = state.0.lock() {
-                        if let Some(ref mut process) = *child {
-                            let _ = process.kill();
+                        if let Some(ref mut p) = *child {
+                            let _ = p.kill();
                         }
                     }
                 }
             }
         })
         .run(tauri::generate_context!())
-        .expect("Error al arrancar EduIA");
+        .expect("Error EduIA");
 }
