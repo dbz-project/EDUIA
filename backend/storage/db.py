@@ -196,7 +196,7 @@ class Grade(Base):
 def init_db():
     """Crea todas las tablas si no existen. Se llama al arrancar la app."""
     Base.metadata.create_all(bind=engine_db)
-    logger.info(f"✅ Base de datos inicializada en: {DB_PATH}")
+    logger.info(f"[OK] Base de datos inicializada en: {DB_PATH}")
 
 
 def get_db() -> Session:

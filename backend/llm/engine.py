@@ -86,7 +86,7 @@ class LLMEngine:
                 verbose=self.config.verbose,
             )
             self._model_loaded = True
-            logger.info("✅ Modelo listo")
+            logger.info("[OK] Modelo listo")
             return True
         except Exception as e:
             logger.error(f"Error cargando modelo: {e}")
@@ -216,7 +216,7 @@ def get_engine():
     t.join(timeout=30)
 
     if result["engine"]:
-        logger.info("✅ Motor LLM real activo")
+        logger.info("[OK] Motor LLM real activo")
         return result["engine"]
 
     logger.warning("[FALLBACK] Activando motor de emergencia. Razón: %s",

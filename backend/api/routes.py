@@ -88,7 +88,7 @@ async def startup():
     if _is_fallback:
         logger.warning("[FALLBACK] Demo en modo fallback")
     else:
-        logger.info("✅ Motor LLM real activo")
+        logger.info("[OK] Motor LLM real activo")
 
 @app.on_event("shutdown")
 async def shutdown():
