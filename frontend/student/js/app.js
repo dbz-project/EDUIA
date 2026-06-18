@@ -1,6 +1,7 @@
 /**
  * frontend/student/js/app.js
- * Arranque, login, navegación — con textos de ChatGPT integrados
+ * Fix: mostrar login cuando backend_alive=true, aunque fallback esté activo
+ * Recomendación ChatGPT: "Backend responde → abrir login. No importa el motor."
  */
 
 const AppState = { student: null, isReturning: false };
@@ -13,33 +14,40 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 // ── Arranque ──────────────────────────────────────
 async function bootSequence() {
-  // Intentar conectar al backend hasta 30s
-  const maxTries = 10;
-  for (let i = 0; i < maxTries; i++) {
+  // Reintentar durante 60s con backoff — da tiempo a Qwen y al fallback
+  const delays = [2000, 3000, 5000, 5000, 10000, 10000, 15000, 10000];
+  
+  for (let i = 0; i < delays.length; i++) {
+    await sleep(delays[i]);
+    
     try {
       const health = await API.health();
-      if (health.model_loaded) {
+      
+      // ChatGPT: si el backend responde, abrir login.
+      // No importa si es Qwen o fallback — ambos pueden atender conversaciones.
+      if (health.ready === true) {
         Loading.hide('loadingScreen');
         showLoginScreen();
         return;
       }
-    } catch (e) { /* backend aún arrancando */ }
-    await sleep(3000);
+    } catch (e) {
+      // Backend aún arrancando — continuar esperando
+      console.log(`Health check ${i+1}/${delays.length} fallido, reintentando...`);
+    }
   }
-  // Timeout — mostrar error
+
+  // Solo si el backend no responde en absoluto → mostrar error
   Loading.hide('loadingScreen');
   document.getElementById('errorScreen').style.display = 'flex';
 }
 
 async function retryConnection() {
   document.getElementById('errorScreen').style.display = 'none';
-  document.getElementById('loadingScreen').style.display = 'flex';
   Loading.show('loadingScreen');
   await bootSequence();
 }
 
 function showLoginScreen() {
-  // Detectar si hay nombre guardado → acceso recurrente
   const savedName = localStorage.getItem('eduia_last_name');
   if (savedName) {
     AppState.isReturning = true;
@@ -85,8 +93,8 @@ async function doLogin() {
   const course = document.getElementById('loginCourse')?.value || '';
   const pin    = getPin();
 
-  if (!name)           { showLoginError('Escribe tu nombre.'); return; }
-  if (pin.length < 4)  { showLoginError('Introduce los 4 dígitos de tu PIN.'); return; }
+  if (!name)          { showLoginError('Escribe tu nombre.'); return; }
+  if (pin.length < 4) { showLoginError('Introduce los 4 dígitos de tu PIN.'); return; }
   if (!AppState.isReturning && !course) {
     showLoginError('Selecciona tu curso.'); return;
   }
@@ -117,15 +125,12 @@ async function doLogin() {
     document.getElementById('loginScreen').style.display = 'none';
     document.getElementById('appShell').style.display    = 'flex';
 
-    // Bienvenida personalizada — textos de ChatGPT
     const welcomes = [
       `¡Hola, ${name}! ¿Sobre qué te gustaría aprender hoy?`,
-      `Bienvenido de nuevo, ${name}. Estoy listo para ayudarte a aprender paso a paso.`,
+      `Bienvenido de nuevo, ${name}. Estoy listo para ayudarte paso a paso.`,
       `Hola, ${name}. Cuéntame qué estás estudiando y empezamos.`,
     ];
-    const welcome = AppState.isReturning
-      ? welcomes[1]
-      : welcomes[0];
+    const welcome = AppState.isReturning ? welcomes[1] : welcomes[0];
 
     await Chat.init(welcome);
     buildFileTypeGrid();
@@ -210,10 +215,9 @@ function startFileCreation(fileType) {
   Chat.pendingFileType = fileType;
   Chat.addMessage('assistant',
     `Vamos a crear un archivo <strong>.${fileType}</strong>. ` +
-    `Antes de generarlo, te haré unas preguntas rápidas para comprobar que entiendes el tema. ` +
+    `Antes de generarlo, te haré unas preguntas para comprobar que entiendes el tema. ` +
     `¿Sobre qué quieres que sea el archivo?`
   );
 }
 
-// ── Utils ─────────────────────────────────────────
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
