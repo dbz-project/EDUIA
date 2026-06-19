@@ -1,6 +1,5 @@
 """
-backend/api/routes.py
-API FastAPI — health check enriquecido (idea ChatGPT) + endpoints completos.
+backend/api/routes.py — CORS ampliado para Tauri
 """
 
 import time
@@ -17,20 +16,28 @@ from backend.security.auth import auth_service
 from backend.llm.fallback import FallbackEngine
 
 logger = logging.getLogger(__name__)
-
-# Tiempo de arranque — para startup_time_ms
 _START_TIME = time.time()
 
 app = FastAPI(title="EduIA", version="0.1.0", docs_url="/docs")
 
+# CORS ampliado — incluye todos los orígenes posibles de Tauri
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost","http://127.0.0.1","tauri://localhost"],
+    allow_origins=[
+        "http://localhost",
+        "http://127.0.0.1",
+        "http://localhost:1420",
+        "http://127.0.0.1:1420",
+        "tauri://localhost",
+        "https://tauri.localhost",
+        "http://tauri.localhost",
+        "*",  # Demo: permitir todo origen local
+    ],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Motor LLM — se inicializa en startup
 _engine = None
 _is_fallback = False
 
@@ -71,7 +78,7 @@ def get_token(authorization: str = Header(None)) -> str:
 def require_student(db: Session = Depends(get_db), token: str = Depends(get_token)):
     student = auth_service.get_current_student(db, token)
     if not student:
-        raise HTTPException(status_code=401, detail="Sesión no válida")
+        raise HTTPException(status_code=401, detail="Sesion no valida")
     return student
 
 
@@ -96,24 +103,18 @@ async def shutdown():
         _engine.unload()
 
 
-# ── Health check enriquecido (ChatGPT) ─────────
+# ── Health check ───────────────────────────────
 
 @app.get("/health")
 def health():
-    """
-    Estado operativo completo para diagnóstico rápido.
-    El campo 'fallback' permite saber en 1 segundo si la demo
-    usa el modelo real o el motor de emergencia.
-    """
     startup_ms = int((time.time() - _START_TIME) * 1000)
     model_info = _engine.get_model_info() if _engine else {}
-
     return {
         "status":          "ok",
         "ready":           _engine is not None,
         "model_loaded":    _engine.is_loaded() if _engine else False,
         "engine":          "fallback" if _is_fallback else "llm",
-        "model_name":      model_info.get("model_name", "—"),
+        "model_name":      model_info.get("model_name", "-"),
         "fallback":        _is_fallback,
         "startup_time_ms": startup_ms,
         "version":         "0.1.0",
@@ -135,7 +136,7 @@ def login(data: LoginRequest, db: Session = Depends(get_db)):
     if data.role == "student":
         token = auth_service.login_student(db, data.name, data.credential)
     else:
-        raise HTTPException(status_code=400, detail="Rol no válido")
+        raise HTTPException(status_code=400, detail="Rol no valido")
     if not token:
         raise HTTPException(status_code=401, detail="Credenciales incorrectas")
     return {"success": True, "token": token, "role": data.role}
@@ -170,7 +171,7 @@ def send_message(
     from backend.llm.socratic import SocraticTutor
     context = _get_context(student, data)
     tutor   = SocraticTutor()
-    tutor.engine = _engine  # inyectar motor activo (real o fallback)
+    tutor.engine = _engine
 
     t0 = time.time()
     response = tutor.respond(data.message, context)
@@ -182,10 +183,10 @@ def send_message(
         _save_msg(db, data.conversation_id, "assistant", response)
 
     return {
-        "response":    response,
-        "hints_used":  context.hints_used_today,
-        "ttft_ms":     ttft_ms,
-        "fallback":    _is_fallback,
+        "response":   response,
+        "hints_used": context.hints_used_today,
+        "ttft_ms":    ttft_ms,
+        "fallback":   _is_fallback,
     }
 
 @app.post("/chat/message/stream")
@@ -200,8 +201,7 @@ async def send_message_stream(
     tutor.engine = _engine
 
     def generate():
-        t0   = time.time()
-        first = True
+        t0 = time.time(); first = True
         for token in tutor.respond_stream(data.message, context):
             if first:
                 logger.info(f"TTFT stream: {int((time.time()-t0)*1000)}ms")
@@ -216,7 +216,7 @@ async def send_message_stream(
 
 @app.post("/files/evaluate")
 def evaluate_for_file(data: FileRequest, student = Depends(require_student)):
-    from backend.llm.socratic import SocraticTutor, StudentContext
+    from backend.llm.socratic import SocraticTutor
     ctx   = _make_context(student)
     tutor = SocraticTutor(); tutor.engine = _engine
     q     = tutor.generate_evaluation_questions(data.file_type, data.topic, ctx)
@@ -232,16 +232,16 @@ def generate_file(
     from backend.file_generator.generator import file_generator
 
     if not data.evaluation_answers or len(data.evaluation_answers) < 3:
-        raise HTTPException(status_code=400, detail="Faltan respuestas de evaluación")
+        raise HTTPException(status_code=400, detail="Faltan respuestas de evaluacion")
 
     ctx   = _make_context(student)
     tutor = SocraticTutor(); tutor.engine = _engine
-    eval_result = tutor.evaluate_answers(data.topic, data.evaluation_answers, ctx)
+    eval_result = tutor.evaluate_answers(data.topic, data.file_type, data.evaluation_answers, ctx)
 
     if not eval_result.get("comprende", False):
         return {
             "success":        False,
-            "message":        eval_result.get("feedback", "Repasa el tema un poco más."),
+            "message":        eval_result.get("feedback", "Repasa el tema."),
             "siguiente_paso": eval_result.get("siguiente_paso", ""),
         }
 
@@ -253,7 +253,7 @@ def generate_file(
         student_name=student.name,
     )
 
-    if result["success"]:
+    if result.get("success"):
         item = PortfolioItem(
             student_id=student.id,
             filename=result["filename"],
@@ -332,8 +332,7 @@ def _init_session(student, data):
 
 def _get_context(student, data):
     from backend.llm.socratic import StudentContext
-    sid    = student.id
-    cid    = data.conversation_id or 0
+    sid = student.id; cid = data.conversation_id or 0
     if sid not in _chat_sessions or cid not in _chat_sessions[sid]:
         _chat_sessions.setdefault(sid, {})[cid] = StudentContext(
             student_id=sid, name=student.name,
@@ -347,7 +346,7 @@ def _make_context(student):
     return StudentContext(
         student_id=student.id, name=student.name,
         course=student.course, age=student.age,
-        subject="Programación",
+        subject="Programacion",
     )
 
 def _save_msg(db, conv_id, role, content):
