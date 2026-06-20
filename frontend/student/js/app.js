@@ -1,6 +1,6 @@
 /**
- * frontend/student/js/app.js
- * Login con registro automático en primer acceso
+ * frontend/student/js/app.js — Fix registro automático
+ * Lógica: intentar login → si falla, registrar → si registro falla, PIN incorrecto
  */
 
 const AppState = { student: null, isReturning: false };
@@ -22,9 +22,7 @@ async function bootSequence() {
         showLoginScreen();
         return;
       }
-    } catch (e) {
-      console.log(`Health check ${i+1} fallido, reintentando...`);
-    }
+    } catch (e) {}
   }
   Loading.hide('loadingScreen');
   document.getElementById('errorScreen').style.display = 'flex';
@@ -45,17 +43,15 @@ function showLoginScreen() {
     document.getElementById('loginBtn').textContent    = 'Entrar';
     document.getElementById('loginName').value         = savedName;
     document.getElementById('courseField').style.display = 'none';
-    // Mostrar botón "No soy yo" para cambiar de usuario
     document.getElementById('switchUserBtn').style.display = 'block';
   } else {
-    document.getElementById('loginBtn').textContent = 'Comenzar';
+    document.getElementById('loginBtn').textContent    = 'Comenzar';
     document.getElementById('switchUserBtn').style.display = 'none';
   }
   document.getElementById('loginScreen').style.display = 'flex';
 }
 
 function switchUser() {
-  // Limpiar nombre guardado y mostrar formulario completo
   localStorage.removeItem('eduia_last_name');
   AppState.isReturning = false;
   document.getElementById('loginTitle').textContent  = 'Bienvenido a EduIA';
@@ -64,8 +60,8 @@ function switchUser() {
   document.getElementById('loginName').value         = '';
   document.getElementById('courseField').style.display = 'block';
   document.getElementById('switchUserBtn').style.display = 'none';
-  // Limpiar PIN
   document.querySelectorAll('.pin-digit').forEach(p => p.value = '');
+  document.getElementById('loginError').style.display = 'none';
   document.getElementById('pin0').focus();
 }
 
@@ -95,14 +91,11 @@ function getPin() {
 
 async function doLogin() {
   const name   = document.getElementById('loginName').value.trim();
-  const course = document.getElementById('loginCourse')?.value || '';
+  const course = document.getElementById('loginCourse')?.value || '1.º DAM';
   const pin    = getPin();
 
   if (!name)          { showLoginError('Escribe tu nombre.'); return; }
   if (pin.length < 4) { showLoginError('Introduce los 4 dígitos de tu PIN.'); return; }
-  if (!AppState.isReturning && !course) {
-    showLoginError('Selecciona tu curso.'); return;
-  }
 
   const btn = document.getElementById('loginBtn');
   btn.textContent = 'Entrando...';
@@ -111,33 +104,31 @@ async function doLogin() {
 
   try {
     let data;
-    
-    // Intentar login primero
+
+    // PASO 1: intentar login
     try {
       data = await API.login(name, pin, course);
     } catch (loginErr) {
-      // Si las credenciales son incorrectas, mostrar error claro
-      if (loginErr.message && loginErr.message.includes('incorrectas')) {
-        throw new Error('PIN incorrecto. Si es tu primera vez, asegúrate de recordar el PIN que elegiste.');
-      }
-      
-      // Si el usuario no existe (otro tipo de error), registrar automáticamente
-      console.log('Usuario no existe, registrando...', loginErr.message);
+
+      // PASO 2: login falló → intentar registrar (usuario nuevo)
       try {
         const age = estimateAge(course);
         await API.register(name, pin, course, age);
+        // Registro OK → login con las mismas credenciales
         data = await API.login(name, pin, course);
       } catch (regErr) {
-        throw new Error('No se pudo crear tu perfil. Inténtalo de nuevo.');
+        // Registro falló → usuario existe con PIN diferente
+        throw new Error('PIN incorrecto. Si ya tienes cuenta usa tu PIN original.');
       }
     }
 
+    // Login/registro OK
     localStorage.setItem('eduia_last_name', name);
-    AppState.student = { name, course: course || AppState.student?.course };
+    AppState.student = { name, course };
 
     document.getElementById('sidebarName').textContent   = name;
     document.getElementById('sidebarCourse').textContent =
-      `${course || ''} · ${document.getElementById('subjectSelect').value}`;
+      `${course} · ${document.getElementById('subjectSelect').value}`;
 
     document.getElementById('loginScreen').style.display = 'none';
     document.getElementById('appShell').style.display    = 'flex';
