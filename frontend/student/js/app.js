@@ -1,7 +1,6 @@
 /**
  * frontend/student/js/app.js
- * Fix: mostrar login cuando backend_alive=true, aunque fallback esté activo
- * Recomendación ChatGPT: "Backend responde → abrir login. No importa el motor."
+ * Login con registro automático en primer acceso
  */
 
 const AppState = { student: null, isReturning: false };
@@ -12,31 +11,21 @@ document.addEventListener('DOMContentLoaded', async () => {
   await bootSequence();
 });
 
-// ── Arranque ──────────────────────────────────────
 async function bootSequence() {
-  // Reintentar durante 60s con backoff — da tiempo a Qwen y al fallback
   const delays = [2000, 3000, 5000, 5000, 10000, 10000, 15000, 10000];
-  
   for (let i = 0; i < delays.length; i++) {
     await sleep(delays[i]);
-    
     try {
       const health = await API.health();
-      
-      // ChatGPT: si el backend responde, abrir login.
-      // No importa si es Qwen o fallback — ambos pueden atender conversaciones.
       if (health.ready === true) {
         Loading.hide('loadingScreen');
         showLoginScreen();
         return;
       }
     } catch (e) {
-      // Backend aún arrancando — continuar esperando
-      console.log(`Health check ${i+1}/${delays.length} fallido, reintentando...`);
+      console.log(`Health check ${i+1} fallido, reintentando...`);
     }
   }
-
-  // Solo si el backend no responde en absoluto → mostrar error
   Loading.hide('loadingScreen');
   document.getElementById('errorScreen').style.display = 'flex';
 }
@@ -51,18 +40,35 @@ function showLoginScreen() {
   const savedName = localStorage.getItem('eduia_last_name');
   if (savedName) {
     AppState.isReturning = true;
-    document.getElementById('loginTitle').textContent = '¡Qué bien verte de nuevo!';
-    document.getElementById('loginSub').textContent   = 'Continúa aprendiendo donde lo dejaste.';
-    document.getElementById('loginBtn').textContent   = 'Entrar';
-    document.getElementById('loginName').value        = savedName;
+    document.getElementById('loginTitle').textContent  = '¡Qué bien verte de nuevo!';
+    document.getElementById('loginSub').textContent    = 'Continúa aprendiendo donde lo dejaste.';
+    document.getElementById('loginBtn').textContent    = 'Entrar';
+    document.getElementById('loginName').value         = savedName;
     document.getElementById('courseField').style.display = 'none';
+    // Mostrar botón "No soy yo" para cambiar de usuario
+    document.getElementById('switchUserBtn').style.display = 'block';
   } else {
     document.getElementById('loginBtn').textContent = 'Comenzar';
+    document.getElementById('switchUserBtn').style.display = 'none';
   }
   document.getElementById('loginScreen').style.display = 'flex';
 }
 
-// ── PIN ───────────────────────────────────────────
+function switchUser() {
+  // Limpiar nombre guardado y mostrar formulario completo
+  localStorage.removeItem('eduia_last_name');
+  AppState.isReturning = false;
+  document.getElementById('loginTitle').textContent  = 'Bienvenido a EduIA';
+  document.getElementById('loginSub').textContent    = 'Tu tutor de aprendizaje te ayudará paso a paso.';
+  document.getElementById('loginBtn').textContent    = 'Comenzar';
+  document.getElementById('loginName').value         = '';
+  document.getElementById('courseField').style.display = 'block';
+  document.getElementById('switchUserBtn').style.display = 'none';
+  // Limpiar PIN
+  document.querySelectorAll('.pin-digit').forEach(p => p.value = '');
+  document.getElementById('pin0').focus();
+}
+
 function setupPinInputs() {
   const pins = document.querySelectorAll('.pin-digit');
   pins.forEach((input, i) => {
@@ -87,7 +93,6 @@ function getPin() {
   return [...document.querySelectorAll('.pin-digit')].map(i => i.value).join('');
 }
 
-// ── Login ─────────────────────────────────────────
 async function doLogin() {
   const name   = document.getElementById('loginName').value.trim();
   const course = document.getElementById('loginCourse')?.value || '';
@@ -106,31 +111,40 @@ async function doLogin() {
 
   try {
     let data;
+    
+    // Intentar login primero
     try {
       data = await API.login(name, pin, course);
-    } catch (e) {
-      if (e.message.includes('incorrectas')) throw e;
-      const age = estimateAge(course);
-      await API.register(name, pin, course, age);
-      data = await API.login(name, pin, course);
+    } catch (loginErr) {
+      // Si las credenciales son incorrectas, mostrar error claro
+      if (loginErr.message && loginErr.message.includes('incorrectas')) {
+        throw new Error('PIN incorrecto. Si es tu primera vez, asegúrate de recordar el PIN que elegiste.');
+      }
+      
+      // Si el usuario no existe (otro tipo de error), registrar automáticamente
+      console.log('Usuario no existe, registrando...', loginErr.message);
+      try {
+        const age = estimateAge(course);
+        await API.register(name, pin, course, age);
+        data = await API.login(name, pin, course);
+      } catch (regErr) {
+        throw new Error('No se pudo crear tu perfil. Inténtalo de nuevo.');
+      }
     }
 
     localStorage.setItem('eduia_last_name', name);
-    AppState.student = { name, course };
+    AppState.student = { name, course: course || AppState.student?.course };
 
     document.getElementById('sidebarName').textContent   = name;
     document.getElementById('sidebarCourse').textContent =
-      `${course} · ${document.getElementById('subjectSelect').value}`;
+      `${course || ''} · ${document.getElementById('subjectSelect').value}`;
 
     document.getElementById('loginScreen').style.display = 'none';
     document.getElementById('appShell').style.display    = 'flex';
 
-    const welcomes = [
-      `¡Hola, ${name}! ¿Sobre qué te gustaría aprender hoy?`,
-      `Bienvenido de nuevo, ${name}. Estoy listo para ayudarte paso a paso.`,
-      `Hola, ${name}. Cuéntame qué estás estudiando y empezamos.`,
-    ];
-    const welcome = AppState.isReturning ? welcomes[1] : welcomes[0];
+    const welcome = AppState.isReturning
+      ? `Bienvenido de nuevo, ${name}. Estoy listo para ayudarte paso a paso.`
+      : `¡Hola, ${name}! ¿Sobre qué te gustaría aprender hoy?`;
 
     await Chat.init(welcome);
     buildFileTypeGrid();
@@ -159,7 +173,6 @@ function estimateAge(course) {
   return map[course] || 16;
 }
 
-// ── Navegación ────────────────────────────────────
 function showPanel(name, btn) {
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
@@ -184,7 +197,6 @@ async function changeSubject() {
   );
 }
 
-// ── Grid de tipos de archivo ──────────────────────
 function buildFileTypeGrid() {
   const types = [
     { ext:'py',   name:'Python',     color:'#3B6D11' },
@@ -199,8 +211,7 @@ function buildFileTypeGrid() {
   grid.innerHTML = types.map(t => `
     <button class="file-type-btn" onclick="startFileCreation('${t.ext}')">
       <span style="font-size:26px;color:${t.color};display:block;margin-bottom:6px;">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-             stroke-width="1.8" width="26" height="26">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="26" height="26">
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
           <polyline points="14 2 14 8 20 8"/>
         </svg>
