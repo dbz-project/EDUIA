@@ -9,34 +9,27 @@
 </head>
 <body>
 
-<!-- ══════════════════════════════════
-     PANTALLA DE CARGA INICIAL
-     Mensajes rotativos cada 3s (idea ChatGPT)
-     ══════════════════════════════════ -->
+<!-- ══ CARGA ══════════════════════════════════ -->
 <div id="loadingScreen">
   <div class="loading-box">
     <div class="loading-logo">
-      <svg width="32" height="32" viewBox="0 0 24 24" fill="none"
-           stroke="currentColor" stroke-width="2" stroke-linecap="round">
-        <path d="M22 10v6M2 10l10-5 10 5-10 5z"/>
-        <path d="M6 12v5c3 3 9 3 12 0v-5"/>
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/>
       </svg>
     </div>
     <div class="loading-title">Preparando EduIA</div>
     <div class="loading-msg" id="loadingMsg">Iniciando...</div>
-    <div class="loading-bar"><div class="loading-bar-fill" id="loadingBarFill"></div></div>
+    <div class="loading-bar"><div class="loading-bar-fill"></div></div>
     <div class="loading-sub">La primera vez puede tardar entre 15 y 30 segundos.</div>
   </div>
 </div>
 
-<!-- ══════════════════════════════════
-     ERROR: MODELO NO DISPONIBLE
-     ══════════════════════════════════ -->
-<div id="errorScreen" style="display:none;">
-  <div class="error-box">
-    <div class="error-icon">⚠️</div>
-    <div class="error-title">No he podido iniciar el tutor.</div>
-    <div class="error-msg">
+<!-- ══ ERROR ═══════════════════════════════════ -->
+<div id="errorScreen" style="display:none; position:fixed; inset:0; background:var(--bg); display:none; align-items:center; justify-content:center; z-index:100; flex-direction:column;">
+  <div style="text-align:center; max-width:320px; padding:20px;">
+    <div style="font-size:40px; margin-bottom:16px;">⚠️</div>
+    <div style="font-size:16px; font-weight:600; margin-bottom:8px;">No he podido iniciar el tutor.</div>
+    <div style="font-size:13px; color:var(--text-2); line-height:1.6; margin-bottom:20px;">
       Parece que falta un archivo necesario para iniciar EduIA.<br>
       Cierra la aplicación y vuelve a intentarlo.<br><br>
       Si el problema continúa, avisa a tu profesor o administrador.
@@ -45,84 +38,165 @@
   </div>
 </div>
 
-<!-- ══════════════════════════════════
-     LOGIN
-     ══════════════════════════════════ -->
-<div id="loginScreen" style="display:none;">
-  <div class="login-box">
+<!-- ══ PANTALLA PRINCIPAL DE ACCESO ═══════════ -->
+<!-- Selector: ¿ya tienes cuenta o eres nuevo? -->
+<div id="loginScreen" style="display:none; position:fixed; inset:0; background:var(--bg); z-index:100;">
 
-    <div class="login-logo">
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none"
-           stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
-        <path d="M22 10v6M2 10l10-5 10 5-10 5z"/>
-        <path d="M6 12v5c3 3 9 3 12 0v-5"/>
-      </svg>
-    </div>
+  <!-- SELECTOR -->
+  <div id="screenSelector" style="display:flex; align-items:center; justify-content:center; height:100%;">
+    <div style="width:420px; text-align:center;">
+      <div class="login-logo">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+          <path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/>
+        </svg>
+      </div>
+      <div class="login-title" style="margin-bottom:8px;">Bienvenido a EduIA</div>
+      <div style="font-size:13px; color:var(--text-2); margin-bottom:36px; line-height:1.5;">
+        Tu tutor de inteligencia artificial.<br>100% local · sin internet.
+      </div>
 
-    <!-- Título cambia según si es primer acceso o recurrente -->
-    <div class="login-title" id="loginTitle">Bienvenido a EduIA</div>
-    <div class="login-sub" id="loginSub">
-      Tu tutor de aprendizaje te ayudará a pensar, practicar y aprender paso a paso.
-    </div>
+      <!-- Dos tarjetas grandes y claras -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:20px;">
 
-    <div class="form-field">
-      <label class="form-label" for="loginName">Tu nombre</label>
-      <input class="form-input" type="text" id="loginName"
-             placeholder="Ana García" autocomplete="off" />
-    </div>
+        <!-- YA TENGO CUENTA -->
+        <button onclick="showScreen('screenLogin')"
+          style="padding:28px 16px; background:var(--surface); border:1.5px solid var(--border-md);
+                 border-radius:var(--radius-lg); cursor:pointer; font-family:var(--font);
+                 transition:border-color 0.15s, background 0.15s; text-align:center;"
+          onmouseover="this.style.borderColor='var(--purple-500)'; this.style.background='var(--purple-50)'"
+          onmouseout="this.style.borderColor='var(--border-md)'; this.style.background='var(--surface)'">
+          <div style="font-size:32px; margin-bottom:10px;">🔑</div>
+          <div style="font-size:15px; font-weight:600; color:var(--text-1); margin-bottom:4px;">
+            Ya tengo cuenta
+          </div>
+          <div style="font-size:12px; color:var(--text-3); line-height:1.4;">
+            Entra con tu nombre y PIN
+          </div>
+        </button>
 
-    <div class="form-field" id="courseField">
-      <label class="form-label" for="loginCourse">Curso</label>
-      <select class="form-select" id="loginCourse">
-        <option value="">Selecciona tu curso...</option>
-        <option>1.º ESO</option><option>2.º ESO</option>
-        <option>3.º ESO</option><option>4.º ESO</option>
-        <option>1.º Bachillerato</option><option>2.º Bachillerato</option>
-        <option>1.º DAM</option><option>2.º DAM</option>
-        <option>1.º DAW</option><option>2.º DAW</option>
-        <option>1.º SMR</option><option>2.º SMR</option>
-      </select>
-    </div>
+        <!-- SOY NUEVO -->
+        <button onclick="showScreen('screenRegister')"
+          style="padding:28px 16px; background:var(--purple-500); border:1.5px solid var(--purple-500);
+                 border-radius:var(--radius-lg); cursor:pointer; font-family:var(--font);
+                 transition:background 0.15s; text-align:center;"
+          onmouseover="this.style.background='var(--purple-800)'"
+          onmouseout="this.style.background='var(--purple-500)'">
+          <div style="font-size:32px; margin-bottom:10px;">✨</div>
+          <div style="font-size:15px; font-weight:600; color:#EEEDFE; margin-bottom:4px;">
+            Soy nuevo
+          </div>
+          <div style="font-size:12px; color:rgba(238,237,254,0.75); line-height:1.4;">
+            Crea tu perfil personal
+          </div>
+        </button>
 
-    <div class="form-field">
-      <label class="form-label">PIN de acceso (4 dígitos)</label>
-      <div class="pin-row" id="pinRow">
-        <input class="pin-digit" type="password" maxlength="1"
-               inputmode="numeric" id="pin0" />
-        <input class="pin-digit" type="password" maxlength="1"
-               inputmode="numeric" id="pin1" />
-        <input class="pin-digit" type="password" maxlength="1"
-               inputmode="numeric" id="pin2" />
-        <input class="pin-digit" type="password" maxlength="1"
-               inputmode="numeric" id="pin3" />
+      </div>
+      <div style="font-size:11px; color:var(--text-3);">
+        Tus datos nunca salen de este ordenador.
       </div>
     </div>
-
-    <button class="btn-login" id="loginBtn" onclick="doLogin()">
-      Comenzar
-    </button>
-    <div class="login-error" id="loginError"></div>
-    <button id="switchUserBtn" onclick="switchUser()"
-      style="display:none;margin-top:12px;background:none;border:none;
-             font-size:12px;color:var(--text-3);cursor:pointer;font-family:var(--font);">
-      No soy yo — cambiar de usuario
-    </button>
   </div>
-</div>
 
-<!-- ══════════════════════════════════
-     APP PRINCIPAL
-     ══════════════════════════════════ -->
+  <!-- LOGIN: ALUMNO EXISTENTE -->
+  <div id="screenLogin" style="display:none; align-items:center; justify-content:center; height:100%;">
+    <div class="login-box">
+      <button onclick="showScreen('screenSelector')"
+        style="align-self:flex-start; background:none; border:none; color:var(--text-3);
+               font-size:12px; cursor:pointer; font-family:var(--font); margin-bottom:8px; padding:0;">
+        ← Volver
+      </button>
+      <div class="login-logo">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+          <path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/>
+        </svg>
+      </div>
+      <div class="login-title">Hola de nuevo</div>
+      <div class="login-sub">Escribe tu nombre y tu PIN para entrar.</div>
+
+      <div class="form-field" style="width:100%;">
+        <label class="form-label">Tu nombre</label>
+        <input class="form-input" type="text" id="loginName" placeholder="Ana García" autocomplete="off" />
+      </div>
+      <div class="form-field" style="width:100%;">
+        <label class="form-label">PIN (4 dígitos)</label>
+        <div class="pin-row" id="loginPinRow">
+          <input class="pin-digit" type="password" maxlength="1" inputmode="numeric" />
+          <input class="pin-digit" type="password" maxlength="1" inputmode="numeric" />
+          <input class="pin-digit" type="password" maxlength="1" inputmode="numeric" />
+          <input class="pin-digit" type="password" maxlength="1" inputmode="numeric" />
+        </div>
+      </div>
+      <button class="btn-login" id="loginBtn" onclick="doLogin()">Entrar</button>
+      <div class="login-error" id="loginError"></div>
+    </div>
+  </div>
+
+  <!-- REGISTRO: ALUMNO NUEVO -->
+  <div id="screenRegister" style="display:none; align-items:center; justify-content:center; height:100%; overflow-y:auto;">
+    <div class="login-box" style="padding:20px 0;">
+      <button onclick="showScreen('screenSelector')"
+        style="align-self:flex-start; background:none; border:none; color:var(--text-3);
+               font-size:12px; cursor:pointer; font-family:var(--font); margin-bottom:8px; padding:0;">
+        ← Volver
+      </button>
+      <div class="login-logo">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+          <path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/>
+        </svg>
+      </div>
+      <div class="login-title">Crear mi perfil</div>
+      <div class="login-sub">Solo necesitas un nombre y un PIN que recuerdes.</div>
+
+      <div class="form-field" style="width:100%;">
+        <label class="form-label">Tu nombre completo</label>
+        <input class="form-input" type="text" id="registerName" placeholder="Ana García López" autocomplete="off" />
+      </div>
+      <div class="form-field" style="width:100%;">
+        <label class="form-label">Curso</label>
+        <select class="form-select" id="registerCourse">
+          <option value="">Selecciona tu curso...</option>
+          <option>1.º ESO</option><option>2.º ESO</option>
+          <option>3.º ESO</option><option>4.º ESO</option>
+          <option>1.º Bachillerato</option><option>2.º Bachillerato</option>
+          <option>1.º DAM</option><option>2.º DAM</option>
+          <option>1.º DAW</option><option>2.º DAW</option>
+          <option>1.º SMR</option><option>2.º SMR</option>
+        </select>
+      </div>
+      <div class="form-field" style="width:100%;">
+        <label class="form-label">Elige un PIN (4 dígitos) — no lo olvides</label>
+        <div class="pin-row" id="registerPinRow">
+          <input class="pin-digit" type="password" maxlength="1" inputmode="numeric" />
+          <input class="pin-digit" type="password" maxlength="1" inputmode="numeric" />
+          <input class="pin-digit" type="password" maxlength="1" inputmode="numeric" />
+          <input class="pin-digit" type="password" maxlength="1" inputmode="numeric" />
+        </div>
+      </div>
+      <div class="form-field" style="width:100%;">
+        <label class="form-label">Repite el PIN para confirmar</label>
+        <div class="pin-row" id="registerPinRow2">
+          <input class="pin-digit" type="password" maxlength="1" inputmode="numeric" />
+          <input class="pin-digit" type="password" maxlength="1" inputmode="numeric" />
+          <input class="pin-digit" type="password" maxlength="1" inputmode="numeric" />
+          <input class="pin-digit" type="password" maxlength="1" inputmode="numeric" />
+        </div>
+      </div>
+      <button class="btn-login" id="registerBtn" onclick="doRegister()">Crear mi perfil</button>
+      <div class="login-error" id="registerError"></div>
+    </div>
+  </div>
+
+</div><!-- fin loginScreen -->
+
+
+<!-- ══ APP PRINCIPAL ══════════════════════════ -->
 <div class="app-shell" id="appShell" style="display:none;">
-
   <aside class="sidebar">
     <div class="sidebar-header">
       <div class="logo">
         <div class="logo-icon">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
-               stroke="currentColor" stroke-width="2.2">
-            <path d="M22 10v6M2 10l10-5 10 5-10 5z"/>
-            <path d="M6 12v5c3 3 9 3 12 0v-5"/>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/>
           </svg>
         </div>
         <div>
@@ -131,50 +205,41 @@
         </div>
       </div>
     </div>
-
     <div class="student-card">
       <div class="name" id="sidebarName">—</div>
       <div class="course" id="sidebarCourse">—</div>
     </div>
-
     <nav class="nav">
       <div class="nav-section">Aprendizaje</div>
       <button class="nav-item active" onclick="showPanel('chat',this)" data-panel="chat">
-        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-             stroke-width="2" width="16" height="16">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
           <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
         </svg>
         Chat con EduIA
       </button>
       <button class="nav-item" onclick="showPanel('portfolio',this)" data-panel="portfolio">
-        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-             stroke-width="2" width="16" height="16">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
           <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
         </svg>
         Mi portfolio
       </button>
-
       <div class="nav-section">Herramientas</div>
       <button class="nav-item" onclick="showPanel('create',this)" data-panel="create">
-        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-             stroke-width="2" width="16" height="16">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
           <polyline points="14 2 14 8 20 8"/>
-          <line x1="12" y1="18" x2="12" y2="12"/>
-          <line x1="9" y1="15" x2="15" y2="15"/>
+          <line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/>
         </svg>
         Crear archivo
       </button>
       <button class="nav-item" onclick="showPanel('history',this)" data-panel="history">
-        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-             stroke-width="2" width="16" height="16">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
           <polyline points="12 8 12 12 14 14"/>
           <path d="M3.05 11a9 9 0 1 1 .5 4m-.5 5v-5h5"/>
         </svg>
         Historial
       </button>
     </nav>
-
     <div class="hint-widget">
       <strong id="hintCount">0</strong> pistas usadas hoy<br>
       <span id="hintMsg" style="font-size:10px;">¡Empecemos a aprender!</span>
@@ -182,84 +247,57 @@
   </aside>
 
   <main class="main">
-
-    <!-- CHAT -->
     <div class="panel active" id="panel-chat">
       <div class="topbar">
         <span class="topbar-title">Chat con EduIA</span>
         <select class="subject-select" id="subjectSelect" onchange="changeSubject()">
-          <option>Programación</option>
-          <option>Bases de Datos</option>
-          <option>Sistemas Informáticos</option>
-          <option>Redes</option>
-          <option>Matemáticas</option>
-          <option>Lengua</option>
+          <option>Programación</option><option>Bases de Datos</option>
+          <option>Sistemas Informáticos</option><option>Redes</option>
+          <option>Matemáticas</option><option>Lengua</option>
         </select>
       </div>
-
-      <div class="chat-messages" id="chatMessages"
-           role="log" aria-live="polite" aria-label="Conversación con EduIA">
-      </div>
-
+      <div class="chat-messages" id="chatMessages" role="log" aria-live="polite"></div>
       <div class="input-bar">
-        <button class="btn-icon" title="Crear archivo"
-                onclick="showPanel('create',document.querySelector('[data-panel=create]'))">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-               stroke-width="2" width="16" height="16">
+        <button class="btn-icon" title="Crear archivo" onclick="showPanel('create',document.querySelector('[data-panel=create]'))">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
             <polyline points="14 2 14 8 20 8"/>
-            <line x1="12" y1="18" x2="12" y2="12"/>
-            <line x1="9" y1="15" x2="15" y2="15"/>
+            <line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/>
           </svg>
         </button>
-        <textarea id="chatInput"
-          placeholder="Escribe tu pregunta o duda..."
-          rows="1" aria-label="Mensaje para EduIA"></textarea>
-        <button class="btn-send" id="sendBtn"
-                onclick="sendMessage()" aria-label="Enviar">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-               stroke-width="2.5" width="16" height="16">
-            <line x1="12" y1="19" x2="12" y2="5"/>
-            <polyline points="5 12 12 5 19 12"/>
+        <textarea id="chatInput" placeholder="Escribe tu pregunta o duda..." rows="1" aria-label="Mensaje para EduIA"></textarea>
+        <button class="btn-send" id="sendBtn" onclick="sendMessage()" aria-label="Enviar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16">
+            <line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>
           </svg>
         </button>
       </div>
     </div>
 
-    <!-- PORTFOLIO -->
     <div class="panel" id="panel-portfolio">
       <div class="topbar">
         <span class="topbar-title">Mi portfolio</span>
-        <span style="font-size:12px;color:var(--text-3);"
-              id="portfolioCount">0 archivos</span>
+        <span style="font-size:12px;color:var(--text-3);" id="portfolioCount">0 archivos</span>
       </div>
       <div class="portfolio-grid" id="portfolioGrid"></div>
     </div>
 
-    <!-- CREAR ARCHIVO -->
     <div class="panel" id="panel-create">
-      <div class="topbar">
-        <span class="topbar-title">Crear archivo</span>
-      </div>
+      <div class="topbar"><span class="topbar-title">Crear archivo</span></div>
       <div class="create-info">
-        Antes de crear cualquier archivo, te haré unas preguntas rápidas
-        para comprobar que entiendes el tema. Así el resultado será realmente tuyo.
+        Antes de crear cualquier archivo, te haré unas preguntas rápidas para comprobar que entiendes el tema.
       </div>
       <div class="file-type-grid" id="fileTypeGrid"></div>
     </div>
 
-    <!-- HISTORIAL -->
     <div class="panel" id="panel-history">
-      <div class="topbar">
-        <span class="topbar-title">Historial de conversaciones</span>
-      </div>
+      <div class="topbar"><span class="topbar-title">Historial</span></div>
       <div class="history-list" id="historyList">
         <div style="padding:20px;font-size:13px;color:var(--text-3);">
           El historial completo estará disponible en la próxima versión.
         </div>
       </div>
     </div>
-
   </main>
 </div>
 

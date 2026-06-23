@@ -1,25 +1,28 @@
 /**
- * frontend/student/js/app.js — Fix registro automático
- * Lógica: intentar login → si falla, registrar → si registro falla, PIN incorrecto
+ * frontend/student/js/app.js
+ * Pantalla de selección: login existente vs registro nuevo
+ * Diseñado para 50-100 alumnos en el mismo PC
  */
 
-const AppState = { student: null, isReturning: false };
+const AppState = { student: null };
 
 document.addEventListener('DOMContentLoaded', async () => {
   Loading.show('loadingScreen');
-  setupPinInputs();
+  setupPinInputs('loginPinRow');
+  setupPinInputs('registerPinRow');
   await bootSequence();
 });
 
+// ── Boot ──────────────────────────────────────
 async function bootSequence() {
   const delays = [2000, 3000, 5000, 5000, 10000, 10000, 15000, 10000];
   for (let i = 0; i < delays.length; i++) {
     await sleep(delays[i]);
     try {
-      const health = await API.health();
-      if (health.ready === true) {
+      const h = await API.health();
+      if (h.ready === true) {
         Loading.hide('loadingScreen');
-        showLoginScreen();
+        showScreen('screenSelector');
         return;
       }
     } catch (e) {}
@@ -34,39 +37,19 @@ async function retryConnection() {
   await bootSequence();
 }
 
-function showLoginScreen() {
-  const savedName = localStorage.getItem('eduia_last_name');
-  if (savedName) {
-    AppState.isReturning = true;
-    document.getElementById('loginTitle').textContent  = '¡Qué bien verte de nuevo!';
-    document.getElementById('loginSub').textContent    = 'Continúa aprendiendo donde lo dejaste.';
-    document.getElementById('loginBtn').textContent    = 'Entrar';
-    document.getElementById('loginName').value         = savedName;
-    document.getElementById('courseField').style.display = 'none';
-    document.getElementById('switchUserBtn').style.display = 'block';
-  } else {
-    document.getElementById('loginBtn').textContent    = 'Comenzar';
-    document.getElementById('switchUserBtn').style.display = 'none';
-  }
-  document.getElementById('loginScreen').style.display = 'flex';
+// ── Navegación entre pantallas ─────────────────
+function showScreen(id) {
+  ['screenSelector','screenLogin','screenRegister'].forEach(s => {
+    const el = document.getElementById(s);
+    if (el) el.style.display = s === id ? 'flex' : 'none';
+  });
+  // Limpiar errores al cambiar pantalla
+  document.querySelectorAll('.login-error').forEach(e => e.style.display = 'none');
 }
 
-function switchUser() {
-  localStorage.removeItem('eduia_last_name');
-  AppState.isReturning = false;
-  document.getElementById('loginTitle').textContent  = 'Bienvenido a EduIA';
-  document.getElementById('loginSub').textContent    = 'Tu tutor de aprendizaje te ayudará paso a paso.';
-  document.getElementById('loginBtn').textContent    = 'Comenzar';
-  document.getElementById('loginName').value         = '';
-  document.getElementById('courseField').style.display = 'block';
-  document.getElementById('switchUserBtn').style.display = 'none';
-  document.querySelectorAll('.pin-digit').forEach(p => p.value = '');
-  document.getElementById('loginError').style.display = 'none';
-  document.getElementById('pin0').focus();
-}
-
-function setupPinInputs() {
-  const pins = document.querySelectorAll('.pin-digit');
+// ── PIN inputs ────────────────────────────────
+function setupPinInputs(rowId) {
+  const pins = document.querySelectorAll(`#${rowId} .pin-digit`);
   pins.forEach((input, i) => {
     input.addEventListener('input', () => {
       input.value = input.value.replace(/\D/g,'');
@@ -74,84 +57,113 @@ function setupPinInputs() {
     });
     input.addEventListener('keydown', e => {
       if (e.key === 'Backspace' && !input.value && i > 0) pins[i-1].focus();
-      if (e.key === 'Enter') doLogin();
+      if (e.key === 'Enter') {
+        if (rowId === 'loginPinRow') doLogin();
+        else doRegister();
+      }
     });
     input.addEventListener('paste', e => {
       const pasted = e.clipboardData.getData('text').replace(/\D/g,'').slice(0,4);
       pasted.split('').forEach((d,j) => { if (pins[j]) pins[j].value = d; });
-      if (pins[pasted.length-1]) pins[pasted.length-1].focus();
       e.preventDefault();
     });
   });
 }
 
-function getPin() {
-  return [...document.querySelectorAll('.pin-digit')].map(i => i.value).join('');
+function getPin(rowId) {
+  return [...document.querySelectorAll(`#${rowId} .pin-digit`)]
+    .map(i => i.value).join('');
 }
 
-async function doLogin() {
-  const name   = document.getElementById('loginName').value.trim();
-  const course = document.getElementById('loginCourse')?.value || '1.º DAM';
-  const pin    = getPin();
+function clearPin(rowId) {
+  document.querySelectorAll(`#${rowId} .pin-digit`).forEach(p => p.value = '');
+}
 
-  if (!name)          { showLoginError('Escribe tu nombre.'); return; }
-  if (pin.length < 4) { showLoginError('Introduce los 4 dígitos de tu PIN.'); return; }
+// ── Login alumno existente ─────────────────────
+async function doLogin() {
+  const name = document.getElementById('loginName').value.trim();
+  const pin  = getPin('loginPinRow');
+
+  if (!name)          { showError('loginError', 'Escribe tu nombre.'); return; }
+  if (pin.length < 4) { showError('loginError', 'Introduce los 4 dígitos de tu PIN.'); return; }
 
   const btn = document.getElementById('loginBtn');
   btn.textContent = 'Entrando...';
-  btn.disabled    = true;
-  document.getElementById('loginError').style.display = 'none';
+  btn.disabled = true;
 
   try {
-    let data;
-
-    // PASO 1: intentar login
-    try {
-      data = await API.login(name, pin, course);
-    } catch (loginErr) {
-
-      // PASO 2: login falló → intentar registrar (usuario nuevo)
-      try {
-        const age = estimateAge(course);
-        await API.register(name, pin, course, age);
-        // Registro OK → login con las mismas credenciales
-        data = await API.login(name, pin, course);
-      } catch (regErr) {
-        // Registro falló → usuario existe con PIN diferente
-        throw new Error('PIN incorrecto. Si ya tienes cuenta usa tu PIN original.');
-      }
-    }
-
-    // Login/registro OK
-    localStorage.setItem('eduia_last_name', name);
-    AppState.student = { name, course };
-
-    document.getElementById('sidebarName').textContent   = name;
-    document.getElementById('sidebarCourse').textContent =
-      `${course} · ${document.getElementById('subjectSelect').value}`;
-
-    document.getElementById('loginScreen').style.display = 'none';
-    document.getElementById('appShell').style.display    = 'flex';
-
-    const welcome = AppState.isReturning
-      ? `Bienvenido de nuevo, ${name}. Estoy listo para ayudarte paso a paso.`
-      : `¡Hola, ${name}! ¿Sobre qué te gustaría aprender hoy?`;
-
-    await Chat.init(welcome);
-    buildFileTypeGrid();
-
+    const data = await API.login(name, pin, '');
+    await enterApp(name, data);
   } catch (err) {
-    showLoginError(err.message || 'Error al entrar. Inténtalo de nuevo.');
+    showError('loginError', 'Nombre o PIN incorrecto. ¿Es tu primera vez? Usa "Soy nuevo".');
   } finally {
-    btn.textContent = AppState.isReturning ? 'Entrar' : 'Comenzar';
-    btn.disabled    = false;
+    btn.textContent = 'Entrar';
+    btn.disabled = false;
   }
 }
 
-function showLoginError(msg) {
-  const el = document.getElementById('loginError');
-  el.textContent   = msg;
-  el.style.display = 'block';
+// ── Registro alumno nuevo ─────────────────────
+async function doRegister() {
+  const name   = document.getElementById('registerName').value.trim();
+  const course = document.getElementById('registerCourse').value;
+  const pin    = getPin('registerPinRow');
+  const pin2   = getPin('registerPinRow2');
+
+  if (!name)          { showError('registerError', 'Escribe tu nombre completo.'); return; }
+  if (!course)        { showError('registerError', 'Selecciona tu curso.'); return; }
+  if (pin.length < 4) { showError('registerError', 'Elige un PIN de 4 dígitos.'); return; }
+  if (pin !== pin2)   { showError('registerError', 'Los dos PINs no coinciden. Inténtalo de nuevo.'); return; }
+
+  const btn = document.getElementById('registerBtn');
+  btn.textContent = 'Creando perfil...';
+  btn.disabled = true;
+
+  try {
+    const age = estimateAge(course);
+    await API.register(name, pin, course, age);
+    const data = await API.login(name, pin, course);
+    await enterApp(name, data, course);
+  } catch (err) {
+    if (err.message && err.message.includes('ya existe')) {
+      showError('registerError', 'Ya existe un alumno con ese nombre. Prueba a añadir tu apellido.');
+    } else {
+      showError('registerError', 'No se pudo crear el perfil. Inténtalo de nuevo.');
+    }
+  } finally {
+    btn.textContent = 'Crear mi perfil';
+    btn.disabled = false;
+  }
+}
+
+// ── Entrar a la app ───────────────────────────
+async function enterApp(name, data, course) {
+  AppState.student = { name, course };
+
+  document.getElementById('sidebarName').textContent   = name;
+  document.getElementById('sidebarCourse').textContent =
+    `${course || ''} · ${document.getElementById('subjectSelect').value}`;
+
+  // Ocultar todas las pantallas de auth
+  ['screenSelector','screenLogin','screenRegister'].forEach(s => {
+    const el = document.getElementById(s);
+    if (el) el.style.display = 'none';
+  });
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('appShell').style.display    = 'flex';
+
+  const isNew = !course; // Si no tiene curso guardado, es acceso recurrente
+  const welcome = isNew
+    ? `¡Hola, ${name}! ¿Sobre qué te gustaría aprender hoy?`
+    : `¡Bienvenido, ${name}! Estoy listo para ayudarte. ¿Por dónde empezamos?`;
+
+  await Chat.init(welcome);
+  buildFileTypeGrid();
+}
+
+// ── Utilidades ────────────────────────────────
+function showError(id, msg) {
+  const el = document.getElementById(id);
+  if (el) { el.textContent = msg; el.style.display = 'block'; }
 }
 
 function estimateAge(course) {
