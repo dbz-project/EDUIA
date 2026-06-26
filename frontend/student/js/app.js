@@ -1,55 +1,68 @@
 /**
- * frontend/student/js/app.js
- * Pantalla de selección: login existente vs registro nuevo
- * Diseñado para 50-100 alumnos en el mismo PC
+ * app.js — Boot simplificado: checks cada 2s desde el inicio
+ * Pantallas separadas: selector / login / registro
  */
 
 const AppState = { student: null };
 
-document.addEventListener('DOMContentLoaded', async () => {
-  Loading.show('loadingScreen');
+document.addEventListener('DOMContentLoaded', () => {
+  const ls = document.getElementById('loadingScreen');
+  if (ls) ls.style.display = 'flex';
+  if (typeof Loading !== 'undefined') Loading.show('loadingScreen');
+
+  startHealthChecks();
   setupPinInputs('loginPinRow');
   setupPinInputs('registerPinRow');
-  await bootSequence();
+  setupPinInputs('registerPinRow2');
 });
 
-// ── Boot ──────────────────────────────────────
-async function bootSequence() {
-  const delays = [2000, 3000, 5000, 5000, 10000, 10000, 15000, 10000];
-  for (let i = 0; i < delays.length; i++) {
-    await sleep(delays[i]);
+async function startHealthChecks() {
+  await sleep(1000);
+  for (let i = 0; i < 30; i++) {
     try {
-      const h = await API.health();
-      if (h.ready === true) {
-        Loading.hide('loadingScreen');
-        showScreen('screenSelector');
-        return;
+      const res = await fetch('http://127.0.0.1:8765/health');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.ready === true) { showAuth(); return; }
       }
     } catch (e) {}
+    await sleep(2000);
   }
-  Loading.hide('loadingScreen');
-  document.getElementById('errorScreen').style.display = 'flex';
+  const ls = document.getElementById('loadingScreen');
+  if (ls) ls.style.display = 'none';
+  const es = document.getElementById('errorScreen');
+  if (es) es.style.display = 'flex';
+}
+
+function showAuth() {
+  const ls = document.getElementById('loadingScreen');
+  if (ls) ls.style.display = 'none';
+  const login = document.getElementById('loginScreen');
+  if (login) login.style.display = 'block';
+  showScreen('screenSelector');
 }
 
 async function retryConnection() {
-  document.getElementById('errorScreen').style.display = 'none';
-  Loading.show('loadingScreen');
-  await bootSequence();
+  const es = document.getElementById('errorScreen');
+  if (es) es.style.display = 'none';
+  const ls = document.getElementById('loadingScreen');
+  if (ls) ls.style.display = 'flex';
+  if (typeof Loading !== 'undefined') Loading.show('loadingScreen');
+  await startHealthChecks();
 }
 
-// ── Navegación entre pantallas ─────────────────
 function showScreen(id) {
   ['screenSelector','screenLogin','screenRegister'].forEach(s => {
     const el = document.getElementById(s);
     if (el) el.style.display = s === id ? 'flex' : 'none';
   });
-  // Limpiar errores al cambiar pantalla
   document.querySelectorAll('.login-error').forEach(e => e.style.display = 'none');
 }
 
-// ── PIN inputs ────────────────────────────────
 function setupPinInputs(rowId) {
-  const pins = document.querySelectorAll(`#${rowId} .pin-digit`);
+  const container = document.getElementById(rowId);
+  if (!container) return;
+  const pins = container.querySelectorAll('.pin-digit');
   pins.forEach((input, i) => {
     input.addEventListener('input', () => {
       input.value = input.value.replace(/\D/g,'');
@@ -57,10 +70,7 @@ function setupPinInputs(rowId) {
     });
     input.addEventListener('keydown', e => {
       if (e.key === 'Backspace' && !input.value && i > 0) pins[i-1].focus();
-      if (e.key === 'Enter') {
-        if (rowId === 'loginPinRow') doLogin();
-        else doRegister();
-      }
+      if (e.key === 'Enter') { if (rowId === 'loginPinRow') doLogin(); else doRegister(); }
     });
     input.addEventListener('paste', e => {
       const pasted = e.clipboardData.getData('text').replace(/\D/g,'').slice(0,4);
@@ -71,38 +81,36 @@ function setupPinInputs(rowId) {
 }
 
 function getPin(rowId) {
-  return [...document.querySelectorAll(`#${rowId} .pin-digit`)]
-    .map(i => i.value).join('');
+  const container = document.getElementById(rowId);
+  if (!container) return '';
+  return [...container.querySelectorAll('.pin-digit')].map(i => i.value).join('');
 }
 
-function clearPin(rowId) {
-  document.querySelectorAll(`#${rowId} .pin-digit`).forEach(p => p.value = '');
-}
-
-// ── Login alumno existente ─────────────────────
 async function doLogin() {
   const name = document.getElementById('loginName').value.trim();
   const pin  = getPin('loginPinRow');
-
   if (!name)          { showError('loginError', 'Escribe tu nombre.'); return; }
   if (pin.length < 4) { showError('loginError', 'Introduce los 4 dígitos de tu PIN.'); return; }
 
   const btn = document.getElementById('loginBtn');
-  btn.textContent = 'Entrando...';
-  btn.disabled = true;
-
+  btn.textContent = 'Entrando...'; btn.disabled = true;
   try {
-    const data = await API.login(name, pin, '');
-    await enterApp(name, data);
+    const res = await fetch('http://127.0.0.1:8765/auth/login', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({name, credential: pin, role: 'student', course: ''}),
+    });
+    if (!res.ok) throw new Error('incorrectas');
+    const data = await res.json();
+    API.token = data.token;
+    await enterApp(name, '');
   } catch (err) {
     showError('loginError', 'Nombre o PIN incorrecto. ¿Es tu primera vez? Usa "Soy nuevo".');
   } finally {
-    btn.textContent = 'Entrar';
-    btn.disabled = false;
+    btn.textContent = 'Entrar'; btn.disabled = false;
   }
 }
 
-// ── Registro alumno nuevo ─────────────────────
 async function doRegister() {
   const name   = document.getElementById('registerName').value.trim();
   const course = document.getElementById('registerCourse').value;
@@ -112,55 +120,51 @@ async function doRegister() {
   if (!name)          { showError('registerError', 'Escribe tu nombre completo.'); return; }
   if (!course)        { showError('registerError', 'Selecciona tu curso.'); return; }
   if (pin.length < 4) { showError('registerError', 'Elige un PIN de 4 dígitos.'); return; }
-  if (pin !== pin2)   { showError('registerError', 'Los dos PINs no coinciden. Inténtalo de nuevo.'); return; }
+  if (pin !== pin2)   { showError('registerError', 'Los dos PINs no coinciden.'); return; }
 
   const btn = document.getElementById('registerBtn');
-  btn.textContent = 'Creando perfil...';
-  btn.disabled = true;
-
+  btn.textContent = 'Creando perfil...'; btn.disabled = true;
   try {
-    const age = estimateAge(course);
-    await API.register(name, pin, course, age);
-    const data = await API.login(name, pin, course);
-    await enterApp(name, data, course);
+    const regRes = await fetch('http://127.0.0.1:8765/auth/register/student', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({name, pin, course, age: estimateAge(course)}),
+    });
+    if (!regRes.ok) { const e = await regRes.json(); throw new Error(e.detail || 'error'); }
+
+    const loginRes = await fetch('http://127.0.0.1:8765/auth/login', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({name, credential: pin, role: 'student', course}),
+    });
+    if (!loginRes.ok) throw new Error('login fallido');
+    const data = await loginRes.json();
+    API.token = data.token;
+    await enterApp(name, course);
   } catch (err) {
-    if (err.message && err.message.includes('ya existe')) {
-      showError('registerError', 'Ya existe un alumno con ese nombre. Prueba a añadir tu apellido.');
-    } else {
-      showError('registerError', 'No se pudo crear el perfil. Inténtalo de nuevo.');
-    }
+    const msg = err.message?.includes('ya existe')
+      ? 'Ya existe un alumno con ese nombre. Añade tu apellido.'
+      : 'No se pudo crear el perfil: ' + (err.message || '');
+    showError('registerError', msg);
   } finally {
-    btn.textContent = 'Crear mi perfil';
-    btn.disabled = false;
+    btn.textContent = 'Crear mi perfil'; btn.disabled = false;
   }
 }
 
-// ── Entrar a la app ───────────────────────────
-async function enterApp(name, data, course) {
+async function enterApp(name, course) {
   AppState.student = { name, course };
-
   document.getElementById('sidebarName').textContent   = name;
   document.getElementById('sidebarCourse').textContent =
-    `${course || ''} · ${document.getElementById('subjectSelect').value}`;
-
-  // Ocultar todas las pantallas de auth
-  ['screenSelector','screenLogin','screenRegister'].forEach(s => {
-    const el = document.getElementById(s);
-    if (el) el.style.display = 'none';
-  });
+    `${course || ''} · ${document.getElementById('subjectSelect')?.value || 'Programación'}`;
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('appShell').style.display    = 'flex';
-
-  const isNew = !course; // Si no tiene curso guardado, es acceso recurrente
-  const welcome = isNew
+  const welcome = course
     ? `¡Hola, ${name}! ¿Sobre qué te gustaría aprender hoy?`
-    : `¡Bienvenido, ${name}! Estoy listo para ayudarte. ¿Por dónde empezamos?`;
-
-  await Chat.init(welcome);
+    : `Bienvenido de nuevo, ${name}. ¿Con qué continuamos?`;
+  if (typeof Chat !== 'undefined') await Chat.init(welcome);
   buildFileTypeGrid();
 }
 
-// ── Utilidades ────────────────────────────────
 function showError(id, msg) {
   const el = document.getElementById(id);
   if (el) { el.textContent = msg; el.style.display = 'block'; }
@@ -182,32 +186,25 @@ function showPanel(name, btn) {
   const panel = document.getElementById('panel-' + name);
   if (panel) panel.classList.add('active');
   if (btn)   btn.classList.add('active');
-  if (name === 'portfolio') Portfolio.load();
+  if (name === 'portfolio' && typeof Portfolio !== 'undefined') Portfolio.load();
 }
 
 async function changeSubject() {
   const subject = document.getElementById('subjectSelect').value;
+  if (typeof Chat === 'undefined') return;
   Chat.subject = subject;
   Chat.clear();
   document.getElementById('sidebarCourse').textContent =
     `${AppState.student?.course || ''} · ${subject}`;
-  try {
-    const conv = await API.startConversation(subject);
-    Chat.conversationId = conv.conversation_id;
-  } catch (e) {}
-  Chat.addMessage('assistant',
-    `Cambiando a <strong>${subject}</strong>. ¿Con qué necesitas ayuda?`
-  );
+  try { const conv = await API.startConversation(subject); Chat.conversationId = conv.conversation_id; } catch(e){}
+  Chat.addMessage('assistant', `Cambiando a <strong>${subject}</strong>. ¿Con qué necesitas ayuda?`);
 }
 
 function buildFileTypeGrid() {
   const types = [
-    { ext:'py',   name:'Python',     color:'#3B6D11' },
-    { ext:'html', name:'HTML',       color:'#993C1D' },
-    { ext:'css',  name:'CSS',        color:'#185FA5' },
-    { ext:'js',   name:'JavaScript', color:'#854F0B' },
-    { ext:'md',   name:'Markdown',   color:'#534AB7' },
-    { ext:'json', name:'JSON',       color:'#0F6E56' },
+    {ext:'py',name:'Python',color:'#3B6D11'},{ext:'html',name:'HTML',color:'#993C1D'},
+    {ext:'css',name:'CSS',color:'#185FA5'},{ext:'js',name:'JavaScript',color:'#854F0B'},
+    {ext:'md',name:'Markdown',color:'#534AB7'},{ext:'json',name:'JSON',color:'#0F6E56'},
   ];
   const grid = document.getElementById('fileTypeGrid');
   if (!grid) return;
@@ -226,12 +223,12 @@ function buildFileTypeGrid() {
 
 function startFileCreation(fileType) {
   showPanel('chat', document.querySelector('[data-panel=chat]'));
-  Chat.pendingFileType = fileType;
-  Chat.addMessage('assistant',
-    `Vamos a crear un archivo <strong>.${fileType}</strong>. ` +
-    `Antes de generarlo, te haré unas preguntas para comprobar que entiendes el tema. ` +
-    `¿Sobre qué quieres que sea el archivo?`
-  );
+  if (typeof Chat !== 'undefined') {
+    Chat.pendingFileType = fileType;
+    Chat.addMessage('assistant',
+      `Vamos a crear un archivo <strong>.${fileType}</strong>. ` +
+      `Antes de generarlo, te haré unas preguntas. ¿Sobre qué quieres que sea?`);
+  }
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
