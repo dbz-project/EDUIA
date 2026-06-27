@@ -1,19 +1,19 @@
 /**
- * app.js — Boot simplificado: checks cada 2s desde el inicio
- * Pantallas separadas: selector / login / registro
+ * app.js v7 — Fix botones inaccesibles por overlay de carga
  */
 
 const AppState = { student: null };
 
 document.addEventListener('DOMContentLoaded', () => {
-  const ls = document.getElementById('loadingScreen');
-  if (ls) ls.style.display = 'flex';
-  if (typeof Loading !== 'undefined') Loading.show('loadingScreen');
-
-  startHealthChecks();
   setupPinInputs('loginPinRow');
   setupPinInputs('registerPinRow');
   setupPinInputs('registerPinRow2');
+
+  // Mostrar carga
+  const ls = document.getElementById('loadingScreen');
+  if (ls) { ls.style.display = 'flex'; ls.style.zIndex = '999'; }
+
+  startHealthChecks();
 });
 
 async function startHealthChecks() {
@@ -28,33 +28,53 @@ async function startHealthChecks() {
     } catch (e) {}
     await sleep(2000);
   }
-  const ls = document.getElementById('loadingScreen');
-  if (ls) ls.style.display = 'none';
-  const es = document.getElementById('errorScreen');
-  if (es) es.style.display = 'flex';
+  showError('errorScreen');
 }
 
 function showAuth() {
+  // Ocultar loading completamente — incluyendo pointer-events
   const ls = document.getElementById('loadingScreen');
-  if (ls) ls.style.display = 'none';
+  if (ls) {
+    ls.style.display = 'none';
+    ls.style.pointerEvents = 'none';
+    ls.style.zIndex = '-1';
+  }
   const login = document.getElementById('loginScreen');
-  if (login) login.style.display = 'block';
+  if (login) {
+    login.style.display = 'block';
+    login.style.zIndex = '100';
+    login.style.pointerEvents = 'all';
+  }
   showScreen('screenSelector');
+}
+
+function showError(id) {
+  const ls = document.getElementById('loadingScreen');
+  if (ls) { ls.style.display = 'none'; ls.style.pointerEvents = 'none'; }
+  const el = document.getElementById(id);
+  if (el) { el.style.display = 'flex'; el.style.zIndex = '200'; }
 }
 
 async function retryConnection() {
   const es = document.getElementById('errorScreen');
   if (es) es.style.display = 'none';
   const ls = document.getElementById('loadingScreen');
-  if (ls) ls.style.display = 'flex';
-  if (typeof Loading !== 'undefined') Loading.show('loadingScreen');
+  if (ls) { ls.style.display = 'flex'; ls.style.zIndex = '999'; ls.style.pointerEvents = 'all'; }
   await startHealthChecks();
 }
 
 function showScreen(id) {
   ['screenSelector','screenLogin','screenRegister'].forEach(s => {
     const el = document.getElementById(s);
-    if (el) el.style.display = s === id ? 'flex' : 'none';
+    if (!el) return;
+    if (s === id) {
+      el.style.display = 'flex';
+      el.style.pointerEvents = 'all';
+      el.style.zIndex = '10';
+    } else {
+      el.style.display = 'none';
+      el.style.pointerEvents = 'none';
+    }
   });
   document.querySelectorAll('.login-error').forEach(e => e.style.display = 'none');
 }
@@ -81,34 +101,32 @@ function setupPinInputs(rowId) {
 }
 
 function getPin(rowId) {
-  const container = document.getElementById(rowId);
-  if (!container) return '';
-  return [...container.querySelectorAll('.pin-digit')].map(i => i.value).join('');
+  const c = document.getElementById(rowId);
+  if (!c) return '';
+  return [...c.querySelectorAll('.pin-digit')].map(i => i.value).join('');
 }
 
 async function doLogin() {
   const name = document.getElementById('loginName').value.trim();
   const pin  = getPin('loginPinRow');
-  if (!name)          { showError('loginError', 'Escribe tu nombre.'); return; }
-  if (pin.length < 4) { showError('loginError', 'Introduce los 4 dígitos de tu PIN.'); return; }
+  if (!name)          { showErr('loginError', 'Escribe tu nombre.'); return; }
+  if (pin.length < 4) { showErr('loginError', 'Introduce los 4 dígitos de tu PIN.'); return; }
 
   const btn = document.getElementById('loginBtn');
   btn.textContent = 'Entrando...'; btn.disabled = true;
   try {
     const res = await fetch('http://127.0.0.1:8765/auth/login', {
       method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({name, credential: pin, role: 'student', course: ''}),
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({name, credential: pin, role:'student', course:''}),
     });
-    if (!res.ok) throw new Error('incorrectas');
+    if (!res.ok) throw new Error();
     const data = await res.json();
     API.token = data.token;
     await enterApp(name, '');
-  } catch (err) {
-    showError('loginError', 'Nombre o PIN incorrecto. ¿Es tu primera vez? Usa "Soy nuevo".');
-  } finally {
-    btn.textContent = 'Entrar'; btn.disabled = false;
-  }
+  } catch {
+    showErr('loginError','Nombre o PIN incorrecto. ¿Primera vez? Usa "Soy nuevo".');
+  } finally { btn.textContent = 'Entrar'; btn.disabled = false; }
 }
 
 async function doRegister() {
@@ -117,47 +135,43 @@ async function doRegister() {
   const pin    = getPin('registerPinRow');
   const pin2   = getPin('registerPinRow2');
 
-  if (!name)          { showError('registerError', 'Escribe tu nombre completo.'); return; }
-  if (!course)        { showError('registerError', 'Selecciona tu curso.'); return; }
-  if (pin.length < 4) { showError('registerError', 'Elige un PIN de 4 dígitos.'); return; }
-  if (pin !== pin2)   { showError('registerError', 'Los dos PINs no coinciden.'); return; }
+  if (!name)          { showErr('registerError','Escribe tu nombre completo.'); return; }
+  if (!course)        { showErr('registerError','Selecciona tu curso.'); return; }
+  if (pin.length < 4) { showErr('registerError','Elige un PIN de 4 dígitos.'); return; }
+  if (pin !== pin2)   { showErr('registerError','Los dos PINs no coinciden.'); return; }
 
   const btn = document.getElementById('registerBtn');
   btn.textContent = 'Creando perfil...'; btn.disabled = true;
   try {
-    const regRes = await fetch('http://127.0.0.1:8765/auth/register/student', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
+    const r1 = await fetch('http://127.0.0.1:8765/auth/register/student', {
+      method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({name, pin, course, age: estimateAge(course)}),
     });
-    if (!regRes.ok) { const e = await regRes.json(); throw new Error(e.detail || 'error'); }
+    if (!r1.ok) { const e = await r1.json(); throw new Error(e.detail||'error'); }
 
-    const loginRes = await fetch('http://127.0.0.1:8765/auth/login', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({name, credential: pin, role: 'student', course}),
+    const r2 = await fetch('http://127.0.0.1:8765/auth/login', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({name, credential:pin, role:'student', course}),
     });
-    if (!loginRes.ok) throw new Error('login fallido');
-    const data = await loginRes.json();
+    if (!r2.ok) throw new Error('login fallido');
+    const data = await r2.json();
     API.token = data.token;
     await enterApp(name, course);
   } catch (err) {
     const msg = err.message?.includes('ya existe')
       ? 'Ya existe un alumno con ese nombre. Añade tu apellido.'
-      : 'No se pudo crear el perfil: ' + (err.message || '');
-    showError('registerError', msg);
-  } finally {
-    btn.textContent = 'Crear mi perfil'; btn.disabled = false;
-  }
+      : 'No se pudo crear el perfil. Inténtalo de nuevo.';
+    showErr('registerError', msg);
+  } finally { btn.textContent = 'Crear mi perfil'; btn.disabled = false; }
 }
 
 async function enterApp(name, course) {
   AppState.student = { name, course };
-  document.getElementById('sidebarName').textContent   = name;
+  document.getElementById('sidebarName').textContent = name;
   document.getElementById('sidebarCourse').textContent =
-    `${course || ''} · ${document.getElementById('subjectSelect')?.value || 'Programación'}`;
+    `${course||''} · ${document.getElementById('subjectSelect')?.value||'Programación'}`;
   document.getElementById('loginScreen').style.display = 'none';
-  document.getElementById('appShell').style.display    = 'flex';
+  document.getElementById('appShell').style.display = 'flex';
   const welcome = course
     ? `¡Hola, ${name}! ¿Sobre qué te gustaría aprender hoy?`
     : `Bienvenido de nuevo, ${name}. ¿Con qué continuamos?`;
@@ -165,39 +179,35 @@ async function enterApp(name, course) {
   buildFileTypeGrid();
 }
 
-function showError(id, msg) {
+function showErr(id, msg) {
   const el = document.getElementById(id);
   if (el) { el.textContent = msg; el.style.display = 'block'; }
 }
 
 function estimateAge(course) {
-  const map = {
-    '1.º ESO':12,'2.º ESO':13,'3.º ESO':14,'4.º ESO':15,
-    '1.º Bachillerato':16,'2.º Bachillerato':17,
-    '1.º DAM':18,'2.º DAM':19,'1.º DAW':18,'2.º DAW':19,
-    '1.º SMR':18,'2.º SMR':19,
-  };
-  return map[course] || 16;
+  const m = {'1.º ESO':12,'2.º ESO':13,'3.º ESO':14,'4.º ESO':15,
+    '1.º Bachillerato':16,'2.º Bachillerato':17,'1.º DAM':18,'2.º DAM':19,
+    '1.º DAW':18,'2.º DAW':19,'1.º SMR':18,'2.º SMR':19};
+  return m[course]||16;
 }
 
 function showPanel(name, btn) {
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
-  const panel = document.getElementById('panel-' + name);
+  const panel = document.getElementById('panel-'+name);
   if (panel) panel.classList.add('active');
   if (btn)   btn.classList.add('active');
-  if (name === 'portfolio' && typeof Portfolio !== 'undefined') Portfolio.load();
+  if (name==='portfolio' && typeof Portfolio!=='undefined') Portfolio.load();
 }
 
 async function changeSubject() {
   const subject = document.getElementById('subjectSelect').value;
-  if (typeof Chat === 'undefined') return;
-  Chat.subject = subject;
-  Chat.clear();
+  if (typeof Chat==='undefined') return;
+  Chat.subject = subject; Chat.clear();
   document.getElementById('sidebarCourse').textContent =
-    `${AppState.student?.course || ''} · ${subject}`;
-  try { const conv = await API.startConversation(subject); Chat.conversationId = conv.conversation_id; } catch(e){}
-  Chat.addMessage('assistant', `Cambiando a <strong>${subject}</strong>. ¿Con qué necesitas ayuda?`);
+    `${AppState.student?.course||''} · ${subject}`;
+  try { const c = await API.startConversation(subject); Chat.conversationId=c.conversation_id; } catch(e){}
+  Chat.addMessage('assistant',`Cambiando a <strong>${subject}</strong>. ¿Con qué necesitas ayuda?`);
 }
 
 function buildFileTypeGrid() {
@@ -208,7 +218,7 @@ function buildFileTypeGrid() {
   ];
   const grid = document.getElementById('fileTypeGrid');
   if (!grid) return;
-  grid.innerHTML = types.map(t => `
+  grid.innerHTML = types.map(t=>`
     <button class="file-type-btn" onclick="startFileCreation('${t.ext}')">
       <span style="font-size:26px;color:${t.color};display:block;margin-bottom:6px;">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="26" height="26">
@@ -223,12 +233,12 @@ function buildFileTypeGrid() {
 
 function startFileCreation(fileType) {
   showPanel('chat', document.querySelector('[data-panel=chat]'));
-  if (typeof Chat !== 'undefined') {
+  if (typeof Chat!=='undefined') {
     Chat.pendingFileType = fileType;
     Chat.addMessage('assistant',
       `Vamos a crear un archivo <strong>.${fileType}</strong>. ` +
-      `Antes de generarlo, te haré unas preguntas. ¿Sobre qué quieres que sea?`);
+      `Antes, te haré unas preguntas rápidas. ¿Sobre qué quieres que sea?`);
   }
 }
 
-function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+function sleep(ms) { return new Promise(r=>setTimeout(r,ms)); }
