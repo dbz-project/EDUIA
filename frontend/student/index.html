@@ -5,191 +5,161 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>EduIA</title>
   <link rel="stylesheet" href="css/main.css" />
-  <link rel="stylesheet" href="css/loading.css" />
 </head>
 <body>
 
-<!-- ══ CARGA ══════════════════════════════════ -->
-<div id="loadingScreen">
-  <div class="loading-box">
-    <div class="loading-logo">
+<!-- CARGA — visible por defecto, el JS la oculta cuando el backend responde -->
+<div id="loadingScreen" style="position:fixed;inset:0;z-index:999;display:flex;align-items:center;justify-content:center;background:#F5F4F1;flex-direction:column;">
+  <div style="display:flex;flex-direction:column;align-items:center;width:300px;text-align:center;">
+    <div style="width:56px;height:56px;border-radius:16px;background:#534AB7;color:#EEEDFE;display:flex;align-items:center;justify-content:center;margin-bottom:20px;">
       <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
         <path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/>
       </svg>
     </div>
-    <div class="loading-title">Preparando EduIA</div>
-    <div class="loading-msg" id="loadingMsg">Iniciando...</div>
-    <div class="loading-bar"><div class="loading-bar-fill"></div></div>
-    <div class="loading-sub">La primera vez puede tardar entre 15 y 30 segundos.</div>
-  </div>
-</div>
-
-<!-- ══ ERROR ═══════════════════════════════════ -->
-<div id="errorScreen" style="display:none; position:fixed; inset:0; background:var(--bg); display:none; align-items:center; justify-content:center; z-index:100; flex-direction:column;">
-  <div style="text-align:center; max-width:320px; padding:20px;">
-    <div style="font-size:40px; margin-bottom:16px;">⚠️</div>
-    <div style="font-size:16px; font-weight:600; margin-bottom:8px;">No he podido iniciar el tutor.</div>
-    <div style="font-size:13px; color:var(--text-2); line-height:1.6; margin-bottom:20px;">
-      Parece que falta un archivo necesario para iniciar EduIA.<br>
-      Cierra la aplicación y vuelve a intentarlo.<br><br>
-      Si el problema continúa, avisa a tu profesor o administrador.
+    <div style="font-size:18px;font-weight:600;color:#1A1A1A;margin-bottom:10px;font-family:system-ui,sans-serif;">Preparando EduIA</div>
+    <div id="loadingMsg" style="font-size:13px;color:#5A5A5A;min-height:20px;margin-bottom:16px;font-family:system-ui,sans-serif;">Iniciando...</div>
+    <div style="width:200px;height:3px;background:rgba(0,0,0,0.1);border-radius:99px;overflow:hidden;margin-bottom:14px;">
+      <div style="height:100%;background:#534AB7;border-radius:99px;animation:loadBar 30s ease-out forwards;"></div>
     </div>
-    <button class="btn-primary" onclick="retryConnection()">Reintentar</button>
+    <div style="font-size:11px;color:#9A9A9A;line-height:1.5;font-family:system-ui,sans-serif;">La primera vez puede tardar entre 15 y 30 segundos.</div>
   </div>
 </div>
 
-<!-- ══ PANTALLA PRINCIPAL DE ACCESO ═══════════ -->
-<!-- Selector: ¿ya tienes cuenta o eres nuevo? -->
-<div id="loginScreen" style="display:none; position:fixed; inset:0; background:var(--bg); z-index:100;">
+<style>
+@keyframes loadBar {
+  0%{width:0%}20%{width:30%}50%{width:60%}80%{width:85%}100%{width:95%}
+}
+</style>
 
-  <!-- SELECTOR -->
-  <div id="screenSelector" style="display:flex; align-items:center; justify-content:center; height:100%;">
-    <div style="width:420px; text-align:center;">
-      <div class="login-logo">
+<!-- ERROR — oculto por defecto -->
+<div id="errorScreen" style="display:none;position:fixed;inset:0;z-index:998;background:#F5F4F1;align-items:center;justify-content:center;flex-direction:column;">
+  <div style="text-align:center;max-width:320px;padding:20px;font-family:system-ui,sans-serif;">
+    <div style="font-size:40px;margin-bottom:16px;">&#x26A0;&#xFE0F;</div>
+    <div style="font-size:16px;font-weight:600;margin-bottom:8px;color:#1A1A1A;">No he podido iniciar el tutor.</div>
+    <div style="font-size:13px;color:#5A5A5A;line-height:1.6;margin-bottom:20px;">
+      Parece que falta un archivo necesario.<br>
+      Cierra la aplicaci&oacute;n y vuelve a intentarlo.<br><br>
+      Si el problema contin&uacute;a, avisa a tu profesor.
+    </div>
+    <button onclick="retryConnection()" style="padding:10px 20px;background:#534AB7;color:#EEEDFE;border:none;border-radius:8px;font-size:14px;cursor:pointer;font-family:system-ui,sans-serif;">Reintentar</button>
+  </div>
+</div>
+
+<!-- LOGIN SCREEN — oculto por defecto, z-index menor que loading -->
+<div id="loginScreen" style="display:none;position:fixed;inset:0;z-index:100;background:#F5F4F1;">
+
+  <!-- SELECTOR: Ya tengo cuenta / Soy nuevo -->
+  <div id="screenSelector" style="display:none;align-items:center;justify-content:center;height:100%;">
+    <div style="width:420px;text-align:center;font-family:system-ui,sans-serif;">
+      <div style="width:56px;height:56px;border-radius:16px;background:#534AB7;color:#EEEDFE;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;">
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
           <path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/>
         </svg>
       </div>
-      <div class="login-title" style="margin-bottom:8px;">Bienvenido a EduIA</div>
-      <div style="font-size:13px; color:var(--text-2); margin-bottom:36px; line-height:1.5;">
-        Tu tutor de inteligencia artificial.<br>100% local · sin internet.
-      </div>
+      <div style="font-size:22px;font-weight:600;color:#1A1A1A;margin-bottom:8px;">Bienvenido a EduIA</div>
+      <div style="font-size:13px;color:#5A5A5A;margin-bottom:36px;line-height:1.5;">Tu tutor de inteligencia artificial.<br>100% local &middot; sin internet.</div>
 
-      <!-- Dos tarjetas grandes y claras -->
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:20px;">
-
-        <!-- YA TENGO CUENTA -->
-        <button onclick="showScreen('screenLogin')"
-          style="padding:28px 16px; background:var(--surface); border:1.5px solid var(--border-md);
-                 border-radius:var(--radius-lg); cursor:pointer; font-family:var(--font);
-                 transition:border-color 0.15s, background 0.15s; text-align:center;"
-          onmouseover="this.style.borderColor='var(--purple-500)'; this.style.background='var(--purple-50)'"
-          onmouseout="this.style.borderColor='var(--border-md)'; this.style.background='var(--surface)'">
-          <div style="font-size:32px; margin-bottom:10px;">🔑</div>
-          <div style="font-size:15px; font-weight:600; color:var(--text-1); margin-bottom:4px;">
-            Ya tengo cuenta
-          </div>
-          <div style="font-size:12px; color:var(--text-3); line-height:1.4;">
-            Entra con tu nombre y PIN
-          </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px;">
+        <button onclick="showScreen('screenLogin')" style="padding:28px 16px;background:#FFFFFF;border:2px solid #D3D1C7;border-radius:12px;cursor:pointer;font-family:system-ui,sans-serif;text-align:center;transition:border-color 0.15s;"
+          onmouseover="this.style.borderColor='#534AB7'" onmouseout="this.style.borderColor='#D3D1C7'">
+          <div style="font-size:32px;margin-bottom:10px;">&#x1F511;</div>
+          <div style="font-size:15px;font-weight:600;color:#1A1A1A;margin-bottom:4px;">Ya tengo cuenta</div>
+          <div style="font-size:12px;color:#9A9A9A;">Entra con tu nombre y PIN</div>
         </button>
 
-        <!-- SOY NUEVO -->
-        <button onclick="showScreen('screenRegister')"
-          style="padding:28px 16px; background:var(--purple-500); border:1.5px solid var(--purple-500);
-                 border-radius:var(--radius-lg); cursor:pointer; font-family:var(--font);
-                 transition:background 0.15s; text-align:center;"
-          onmouseover="this.style.background='var(--purple-800)'"
-          onmouseout="this.style.background='var(--purple-500)'">
-          <div style="font-size:32px; margin-bottom:10px;">✨</div>
-          <div style="font-size:15px; font-weight:600; color:#EEEDFE; margin-bottom:4px;">
-            Soy nuevo
-          </div>
-          <div style="font-size:12px; color:rgba(238,237,254,0.75); line-height:1.4;">
-            Crea tu perfil personal
-          </div>
+        <button onclick="showScreen('screenRegister')" style="padding:28px 16px;background:#534AB7;border:2px solid #534AB7;border-radius:12px;cursor:pointer;font-family:system-ui,sans-serif;text-align:center;"
+          onmouseover="this.style.background='#3C3489'" onmouseout="this.style.background='#534AB7'">
+          <div style="font-size:32px;margin-bottom:10px;">&#x2728;</div>
+          <div style="font-size:15px;font-weight:600;color:#EEEDFE;margin-bottom:4px;">Soy nuevo</div>
+          <div style="font-size:12px;color:rgba(238,237,254,0.75);">Crea tu perfil personal</div>
         </button>
-
       </div>
-      <div style="font-size:11px; color:var(--text-3);">
-        Tus datos nunca salen de este ordenador.
-      </div>
+      <div style="font-size:11px;color:#9A9A9A;">Tus datos nunca salen de este ordenador.</div>
     </div>
   </div>
 
-  <!-- LOGIN: ALUMNO EXISTENTE -->
-  <div id="screenLogin" style="display:none; align-items:center; justify-content:center; height:100%;">
-    <div class="login-box">
-      <button onclick="showScreen('screenSelector')"
-        style="align-self:flex-start; background:none; border:none; color:var(--text-3);
-               font-size:12px; cursor:pointer; font-family:var(--font); margin-bottom:8px; padding:0;">
-        ← Volver
-      </button>
-      <div class="login-logo">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
-          <path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/>
-        </svg>
+  <!-- LOGIN: alumno existente -->
+  <div id="screenLogin" style="display:none;align-items:center;justify-content:center;height:100%;">
+    <div style="width:320px;display:flex;flex-direction:column;align-items:center;font-family:system-ui,sans-serif;">
+      <button onclick="showScreen('screenSelector')" style="align-self:flex-start;background:none;border:none;color:#9A9A9A;font-size:12px;cursor:pointer;margin-bottom:12px;font-family:system-ui,sans-serif;">&#x2190; Volver</button>
+      <div style="width:52px;height:52px;border-radius:14px;background:#534AB7;color:#EEEDFE;display:flex;align-items:center;justify-content:center;margin-bottom:16px;">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
       </div>
-      <div class="login-title">Hola de nuevo</div>
-      <div class="login-sub">Escribe tu nombre y tu PIN para entrar.</div>
+      <div style="font-size:20px;font-weight:600;color:#1A1A1A;margin-bottom:6px;">Hola de nuevo</div>
+      <div style="font-size:13px;color:#5A5A5A;margin-bottom:24px;text-align:center;">Escribe tu nombre y tu PIN para entrar.</div>
 
-      <div class="form-field" style="width:100%;">
-        <label class="form-label">Tu nombre</label>
-        <input class="form-input" type="text" id="loginName" placeholder="Ana García" autocomplete="off" />
+      <div style="width:100%;margin-bottom:12px;">
+        <label style="display:block;font-size:12px;font-weight:500;color:#5A5A5A;margin-bottom:5px;">Tu nombre</label>
+        <input id="loginName" type="text" placeholder="Ana García" autocomplete="off"
+          style="width:100%;padding:10px 12px;font-size:14px;border:1px solid #D3D1C7;border-radius:8px;background:#FFF;color:#1A1A1A;font-family:system-ui,sans-serif;box-sizing:border-box;" />
       </div>
-      <div class="form-field" style="width:100%;">
-        <label class="form-label">PIN (4 dígitos)</label>
-        <div class="pin-row" id="loginPinRow">
-          <input class="pin-digit" type="password" maxlength="1" inputmode="numeric" />
-          <input class="pin-digit" type="password" maxlength="1" inputmode="numeric" />
-          <input class="pin-digit" type="password" maxlength="1" inputmode="numeric" />
-          <input class="pin-digit" type="password" maxlength="1" inputmode="numeric" />
+      <div style="width:100%;margin-bottom:16px;">
+        <label style="display:block;font-size:12px;font-weight:500;color:#5A5A5A;margin-bottom:5px;">PIN (4 d&iacute;gitos)</label>
+        <div id="loginPinRow" style="display:flex;gap:10px;justify-content:center;">
+          <input class="pin-digit" type="password" maxlength="1" inputmode="numeric" style="width:52px;height:52px;text-align:center;font-size:20px;font-weight:600;border:1px solid #D3D1C7;border-radius:8px;background:#FFF;color:#1A1A1A;font-family:system-ui,sans-serif;" />
+          <input class="pin-digit" type="password" maxlength="1" inputmode="numeric" style="width:52px;height:52px;text-align:center;font-size:20px;font-weight:600;border:1px solid #D3D1C7;border-radius:8px;background:#FFF;color:#1A1A1A;font-family:system-ui,sans-serif;" />
+          <input class="pin-digit" type="password" maxlength="1" inputmode="numeric" style="width:52px;height:52px;text-align:center;font-size:20px;font-weight:600;border:1px solid #D3D1C7;border-radius:8px;background:#FFF;color:#1A1A1A;font-family:system-ui,sans-serif;" />
+          <input class="pin-digit" type="password" maxlength="1" inputmode="numeric" style="width:52px;height:52px;text-align:center;font-size:20px;font-weight:600;border:1px solid #D3D1C7;border-radius:8px;background:#FFF;color:#1A1A1A;font-family:system-ui,sans-serif;" />
         </div>
       </div>
-      <button class="btn-login" id="loginBtn" onclick="doLogin()">Entrar</button>
-      <div class="login-error" id="loginError"></div>
+      <button id="loginBtn" onclick="doLogin()" style="width:100%;padding:11px;background:#534AB7;color:#EEEDFE;border:none;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;font-family:system-ui,sans-serif;">Entrar</button>
+      <div id="loginError" style="display:none;width:100%;margin-top:10px;padding:9px 12px;background:#FCEAEA;color:#C0392B;border-radius:8px;font-size:12px;font-family:system-ui,sans-serif;box-sizing:border-box;"></div>
     </div>
   </div>
 
-  <!-- REGISTRO: ALUMNO NUEVO -->
-  <div id="screenRegister" style="display:none; align-items:center; justify-content:center; height:100%; overflow-y:auto;">
-    <div class="login-box" style="padding:20px 0;">
-      <button onclick="showScreen('screenSelector')"
-        style="align-self:flex-start; background:none; border:none; color:var(--text-3);
-               font-size:12px; cursor:pointer; font-family:var(--font); margin-bottom:8px; padding:0;">
-        ← Volver
-      </button>
-      <div class="login-logo">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
-          <path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/>
-        </svg>
+  <!-- REGISTRO: alumno nuevo -->
+  <div id="screenRegister" style="display:none;align-items:center;justify-content:center;height:100%;overflow-y:auto;">
+    <div style="width:320px;display:flex;flex-direction:column;align-items:center;font-family:system-ui,sans-serif;padding:20px 0;">
+      <button onclick="showScreen('screenSelector')" style="align-self:flex-start;background:none;border:none;color:#9A9A9A;font-size:12px;cursor:pointer;margin-bottom:12px;font-family:system-ui,sans-serif;">&#x2190; Volver</button>
+      <div style="width:52px;height:52px;border-radius:14px;background:#534AB7;color:#EEEDFE;display:flex;align-items:center;justify-content:center;margin-bottom:16px;">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
       </div>
-      <div class="login-title">Crear mi perfil</div>
-      <div class="login-sub">Solo necesitas un nombre y un PIN que recuerdes.</div>
+      <div style="font-size:20px;font-weight:600;color:#1A1A1A;margin-bottom:6px;">Crear mi perfil</div>
+      <div style="font-size:13px;color:#5A5A5A;margin-bottom:24px;text-align:center;">Solo necesitas un nombre y un PIN que recuerdes.</div>
 
-      <div class="form-field" style="width:100%;">
-        <label class="form-label">Tu nombre completo</label>
-        <input class="form-input" type="text" id="registerName" placeholder="Ana García López" autocomplete="off" />
+      <div style="width:100%;margin-bottom:12px;">
+        <label style="display:block;font-size:12px;font-weight:500;color:#5A5A5A;margin-bottom:5px;">Tu nombre completo</label>
+        <input id="registerName" type="text" placeholder="Ana García López" autocomplete="off"
+          style="width:100%;padding:10px 12px;font-size:14px;border:1px solid #D3D1C7;border-radius:8px;background:#FFF;color:#1A1A1A;font-family:system-ui,sans-serif;box-sizing:border-box;" />
       </div>
-      <div class="form-field" style="width:100%;">
-        <label class="form-label">Curso</label>
-        <select class="form-select" id="registerCourse">
+      <div style="width:100%;margin-bottom:12px;">
+        <label style="display:block;font-size:12px;font-weight:500;color:#5A5A5A;margin-bottom:5px;">Curso</label>
+        <select id="registerCourse" style="width:100%;padding:10px 12px;font-size:14px;border:1px solid #D3D1C7;border-radius:8px;background:#FFF;color:#1A1A1A;font-family:system-ui,sans-serif;box-sizing:border-box;">
           <option value="">Selecciona tu curso...</option>
-          <option>1.º ESO</option><option>2.º ESO</option>
-          <option>3.º ESO</option><option>4.º ESO</option>
+          <option>1.º ESO</option><option>2.º ESO</option><option>3.º ESO</option><option>4.º ESO</option>
           <option>1.º Bachillerato</option><option>2.º Bachillerato</option>
           <option>1.º DAM</option><option>2.º DAM</option>
           <option>1.º DAW</option><option>2.º DAW</option>
           <option>1.º SMR</option><option>2.º SMR</option>
         </select>
       </div>
-      <div class="form-field" style="width:100%;">
-        <label class="form-label">Elige un PIN (4 dígitos) — no lo olvides</label>
-        <div class="pin-row" id="registerPinRow">
-          <input class="pin-digit" type="password" maxlength="1" inputmode="numeric" />
-          <input class="pin-digit" type="password" maxlength="1" inputmode="numeric" />
-          <input class="pin-digit" type="password" maxlength="1" inputmode="numeric" />
-          <input class="pin-digit" type="password" maxlength="1" inputmode="numeric" />
+      <div style="width:100%;margin-bottom:12px;">
+        <label style="display:block;font-size:12px;font-weight:500;color:#5A5A5A;margin-bottom:5px;">Elige un PIN (4 d&iacute;gitos) &mdash; no lo olvides</label>
+        <div id="registerPinRow" style="display:flex;gap:10px;justify-content:center;">
+          <input class="pin-digit" type="password" maxlength="1" inputmode="numeric" style="width:52px;height:52px;text-align:center;font-size:20px;font-weight:600;border:1px solid #D3D1C7;border-radius:8px;background:#FFF;color:#1A1A1A;" />
+          <input class="pin-digit" type="password" maxlength="1" inputmode="numeric" style="width:52px;height:52px;text-align:center;font-size:20px;font-weight:600;border:1px solid #D3D1C7;border-radius:8px;background:#FFF;color:#1A1A1A;" />
+          <input class="pin-digit" type="password" maxlength="1" inputmode="numeric" style="width:52px;height:52px;text-align:center;font-size:20px;font-weight:600;border:1px solid #D3D1C7;border-radius:8px;background:#FFF;color:#1A1A1A;" />
+          <input class="pin-digit" type="password" maxlength="1" inputmode="numeric" style="width:52px;height:52px;text-align:center;font-size:20px;font-weight:600;border:1px solid #D3D1C7;border-radius:8px;background:#FFF;color:#1A1A1A;" />
         </div>
       </div>
-      <div class="form-field" style="width:100%;">
-        <label class="form-label">Repite el PIN para confirmar</label>
-        <div class="pin-row" id="registerPinRow2">
-          <input class="pin-digit" type="password" maxlength="1" inputmode="numeric" />
-          <input class="pin-digit" type="password" maxlength="1" inputmode="numeric" />
-          <input class="pin-digit" type="password" maxlength="1" inputmode="numeric" />
-          <input class="pin-digit" type="password" maxlength="1" inputmode="numeric" />
+      <div style="width:100%;margin-bottom:16px;">
+        <label style="display:block;font-size:12px;font-weight:500;color:#5A5A5A;margin-bottom:5px;">Repite el PIN para confirmar</label>
+        <div id="registerPinRow2" style="display:flex;gap:10px;justify-content:center;">
+          <input class="pin-digit" type="password" maxlength="1" inputmode="numeric" style="width:52px;height:52px;text-align:center;font-size:20px;font-weight:600;border:1px solid #D3D1C7;border-radius:8px;background:#FFF;color:#1A1A1A;" />
+          <input class="pin-digit" type="password" maxlength="1" inputmode="numeric" style="width:52px;height:52px;text-align:center;font-size:20px;font-weight:600;border:1px solid #D3D1C7;border-radius:8px;background:#FFF;color:#1A1A1A;" />
+          <input class="pin-digit" type="password" maxlength="1" inputmode="numeric" style="width:52px;height:52px;text-align:center;font-size:20px;font-weight:600;border:1px solid #D3D1C7;border-radius:8px;background:#FFF;color:#1A1A1A;" />
+          <input class="pin-digit" type="password" maxlength="1" inputmode="numeric" style="width:52px;height:52px;text-align:center;font-size:20px;font-weight:600;border:1px solid #D3D1C7;border-radius:8px;background:#FFF;color:#1A1A1A;" />
         </div>
       </div>
-      <button class="btn-login" id="registerBtn" onclick="doRegister()">Crear mi perfil</button>
-      <div class="login-error" id="registerError"></div>
+      <button id="registerBtn" onclick="doRegister()" style="width:100%;padding:11px;background:#534AB7;color:#EEEDFE;border:none;border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;font-family:system-ui,sans-serif;">Crear mi perfil</button>
+      <div id="registerError" style="display:none;width:100%;margin-top:10px;padding:9px 12px;background:#FCEAEA;color:#C0392B;border-radius:8px;font-size:12px;font-family:system-ui,sans-serif;box-sizing:border-box;"></div>
     </div>
   </div>
 
 </div><!-- fin loginScreen -->
 
 
-<!-- ══ APP PRINCIPAL ══════════════════════════ -->
+<!-- APP PRINCIPAL -->
 <div class="app-shell" id="appShell" style="display:none;">
   <aside class="sidebar">
     <div class="sidebar-header">
@@ -212,31 +182,20 @@
     <nav class="nav">
       <div class="nav-section">Aprendizaje</div>
       <button class="nav-item active" onclick="showPanel('chat',this)" data-panel="chat">
-        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-        </svg>
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
         Chat con EduIA
       </button>
       <button class="nav-item" onclick="showPanel('portfolio',this)" data-panel="portfolio">
-        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-        </svg>
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
         Mi portfolio
       </button>
       <div class="nav-section">Herramientas</div>
       <button class="nav-item" onclick="showPanel('create',this)" data-panel="create">
-        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-          <polyline points="14 2 14 8 20 8"/>
-          <line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/>
-        </svg>
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
         Crear archivo
       </button>
       <button class="nav-item" onclick="showPanel('history',this)" data-panel="history">
-        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-          <polyline points="12 8 12 12 14 14"/>
-          <path d="M3.05 11a9 9 0 1 1 .5 4m-.5 5v-5h5"/>
-        </svg>
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><polyline points="12 8 12 12 14 14"/><path d="M3.05 11a9 9 0 1 1 .5 4m-.5 5v-5h5"/></svg>
         Historial
       </button>
     </nav>
@@ -258,22 +217,15 @@
       </div>
       <div class="chat-messages" id="chatMessages" role="log" aria-live="polite"></div>
       <div class="input-bar">
-        <button class="btn-icon" title="Crear archivo" onclick="showPanel('create',document.querySelector('[data-panel=create]'))">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-            <polyline points="14 2 14 8 20 8"/>
-            <line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/>
-          </svg>
+        <button class="btn-icon" onclick="showPanel('create',document.querySelector('[data-panel=create]'))">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
         </button>
-        <textarea id="chatInput" placeholder="Escribe tu pregunta o duda..." rows="1" aria-label="Mensaje para EduIA"></textarea>
-        <button class="btn-send" id="sendBtn" onclick="sendMessage()" aria-label="Enviar">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16">
-            <line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>
-          </svg>
+        <textarea id="chatInput" placeholder="Escribe tu pregunta o duda..." rows="1"></textarea>
+        <button class="btn-send" id="sendBtn" onclick="sendMessage()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
         </button>
       </div>
     </div>
-
     <div class="panel" id="panel-portfolio">
       <div class="topbar">
         <span class="topbar-title">Mi portfolio</span>
@@ -281,27 +233,20 @@
       </div>
       <div class="portfolio-grid" id="portfolioGrid"></div>
     </div>
-
     <div class="panel" id="panel-create">
       <div class="topbar"><span class="topbar-title">Crear archivo</span></div>
-      <div class="create-info">
-        Antes de crear cualquier archivo, te haré unas preguntas rápidas para comprobar que entiendes el tema.
-      </div>
+      <div class="create-info">Antes de crear cualquier archivo, te haré unas preguntas rápidas para comprobar que entiendes el tema.</div>
       <div class="file-type-grid" id="fileTypeGrid"></div>
     </div>
-
     <div class="panel" id="panel-history">
       <div class="topbar"><span class="topbar-title">Historial</span></div>
       <div class="history-list" id="historyList">
-        <div style="padding:20px;font-size:13px;color:var(--text-3);">
-          El historial completo estará disponible en la próxima versión.
-        </div>
+        <div style="padding:20px;font-size:13px;color:var(--text-3);">El historial completo estará disponible en la próxima versión.</div>
       </div>
     </div>
   </main>
 </div>
 
-<script src="js/loading.js"></script>
 <script src="js/api.js"></script>
 <script src="js/chat.js"></script>
 <script src="js/portfolio.js"></script>
